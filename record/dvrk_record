@@ -1,0 +1,6 @@
+#!/bin/bash
+#rosbag record -b 0 -o subset /endoscope/left/image_raw/compressed /endoscope/right/image_raw/compressed /dvrk/PSM1/io/actuator_current_measured /dvrk/PSM2/io/actuator_current_measured /dvrk/PSM1/position_cartesian_current /dvrk/PSM2/position_cartesian_current /dvrk/PSM1/io/joint_position /dvrk/PSM2/io/joint_position /dvrk/PSM1/state_jaw_current /dvrk/PSM2/state_jaw_current
+
+#rosbag record -b 0 -o subset /endoscope/left/camera_info /endoscope/right/camera_info
+
+rosbag record -e "(.*)PSM1(.*)"

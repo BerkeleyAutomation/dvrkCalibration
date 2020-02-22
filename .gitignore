@@ -1,0 +1,14 @@
+# Stuff we always want to exclude
+*.tar.gz
+*.pyc
+__pycache__
+
+# vim stuff
+*.swo
+*.swp
+
+# I prefaced virtualenvs with this.
+venv*
+
+# rosbag files
+*.bag
