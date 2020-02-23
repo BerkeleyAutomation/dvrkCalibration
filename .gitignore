@@ -12,3 +12,6 @@ venv*
 
 # rosbag files
 *.bag
+
+# don't push logs for model training
+log/*
