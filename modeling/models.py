@@ -21,7 +21,7 @@ class CalibrationModel(nn.Module):
     def forward(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
-        return torch.tanh(self.output(x))
+        return self.output(x)
 
 class CalibrationLSTM(nn.Module):
     def __init__(self, num_inputs, num_outputs, hidden_layer_size=100):

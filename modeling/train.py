@@ -29,16 +29,18 @@ class Experiment:
 			flatten_data(self.data_full, config.input_src),
 			flatten_data(self.data_full, config.output_src),
 			config.history, rnn=config.rnn)
+		self.original_preds = torch.FloatTensor(flatten_data(self.data_full, config.original_preds)).to(self.device)
 		self.original_loss = F.mse_loss(
-			torch.FloatTensor(flatten_data(self.data_full, config.original_preds)).to(self.device),
+			self.original_preds,
 			torch.FloatTensor(flatten_data(self.data_full, config.output_src)).to(self.device)
 			).detach().cpu().numpy()
+		self.use_original_preds = config.use_original_preds
 
-		validation_size = int(config.validation_prob * len(self.training_inputs))
-		self.training_inputs = self.training_inputs[validation_size:]
-		self.training_outputs = self.training_outputs[validation_size:]
-		self.val_inputs = self.training_inputs[:validation_size]
-		self.val_outputs = self.training_outputs[:validation_size]
+		self.validation_size = int(config.validation_prob * len(self.training_inputs))
+		self.training_inputs = self.training_inputs[self.validation_size:]
+		self.training_outputs = self.training_outputs[self.validation_size:]
+		self.val_inputs = self.training_inputs[:self.validation_size]
+		self.val_outputs = self.training_outputs[:self.validation_size]
 		self.config.input_dim = self.training_inputs.shape[2] if config.rnn else self.training_inputs.shape[1]
 		self.config.output_dim = self.training_outputs.shape[1]
 
@@ -77,7 +79,7 @@ class Experiment:
 	def run(self):
 		for i in range(self.training_iterations):
 			self.optimizer.zero_grad()
-			batch_inputs, batch_outputs = self.dataset(self.batch_size)
+			batch_inputs, batch_outputs, batch_indices = self.dataset(self.batch_size, ret_indices=True)
 			batch_inputs = torch.FloatTensor(batch_inputs).to(self.device)
 			batch_outputs = torch.FloatTensor(batch_outputs).to(self.device)
 			if self.rnn:
@@ -91,11 +93,13 @@ class Experiment:
 				preds = torch.stack(preds)
 			else:
 				preds = self.model(batch_inputs)
+			if self.use_original_preds:
+				preds = preds + self.original_preds[batch_indices + self.validation_size]
 			loss = F.mse_loss(preds, batch_outputs)
 			loss.backward()
 			self.optimizer.step()
 
-			val_batch_inputs, val_batch_outputs = self.val_dataset()
+			val_batch_inputs, val_batch_outputs, val_batch_indices = self.val_dataset(ret_indices=True)
 			val_batch_inputs = torch.FloatTensor(val_batch_inputs).to(self.device)
 			val_batch_outputs = torch.FloatTensor(val_batch_outputs).to(self.device)
 			with torch.no_grad():
@@ -109,6 +113,8 @@ class Experiment:
 					val_preds = torch.stack(val_preds)
 				else:
 					val_preds = self.model(val_batch_inputs)
+				if self.use_original_preds:
+					val_preds = val_preds + self.original_preds[val_batch_indices]
 				val_loss = F.mse_loss(val_preds, val_batch_outputs)
 
 			self.training_losses.append(loss.detach().cpu().numpy())
@@ -148,6 +154,7 @@ def create_config():
 	config.input_src = ["joint_desired", "quaternion_desired", "joint_actual"]
 	config.output_src = ["joint_actual"]
 	config.original_preds = ["joint_desired"]
+	config.use_original_preds = False # this overfits for some reason...
 	config.history = 5
 	config.batch_size = 100
 	config.training_iterations = 5000
