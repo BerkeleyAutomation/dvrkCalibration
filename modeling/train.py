@@ -39,7 +39,7 @@ class Experiment:
 		self.training_outputs = self.training_outputs[validation_size:]
 		self.val_inputs = self.training_inputs[:validation_size]
 		self.val_outputs = self.training_outputs[:validation_size]
-		self.config.input_dim = self.training_inputs.shape[1]
+		self.config.input_dim = self.training_inputs.shape[2] if config.rnn else self.training_inputs.shape[1]
 		self.config.output_dim = self.training_outputs.shape[1]
 
 		self.dataset = Dataset(self.training_inputs, self.training_outputs)
@@ -156,7 +156,7 @@ def create_config():
 	config.save_freq = 10
 	config.log_freq = 10
 	config.validation_prob = 0.1
-	config.rnn = False
+	config.rnn = True
 	return config
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ import pickle
 
 import torch
 
-from .models import CalibrationModel
+from .models import CalibrationModel, CalibrationLSTM
 
 def load_model(model_dir, model_name=None):
 	if model_name is not None:
@@ -15,7 +15,10 @@ def load_model(model_dir, model_name=None):
 	with open(config_file, "rb") as f:
 		config = pickle.load(f)
 
-	model = CalibrationModel(config.input_dim, config.output_dim)
+	if config.rnn:
+		model = CalibrationLSTM(config.input_dim, config.output_dim)
+	else:
+		model = CalibrationModel(config.input_dim, config.output_dim)
 	model.load_state_dict(torch.load(model_file))
 	model.eval()
 
@@ -23,4 +26,4 @@ def load_model(model_dir, model_name=None):
 
 
 if __name__ == '__main__':
-	model = load_model(osp.join("log", "2020-02-23--17:42:16"))
+	model = load_model(osp.join("log", "2020-02-23--19:37:35"))
