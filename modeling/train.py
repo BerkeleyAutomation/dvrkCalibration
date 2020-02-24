@@ -12,7 +12,7 @@ from torch.optim import Adam
 import torch.nn.functional as F
 
 from .dataset import Dataset
-from .models import CalibrationModel
+from .models import CalibrationModel, CalibrationLSTM
 from .utils import load_data, join_data, flatten_data, incorporate_history
 
 
@@ -28,7 +28,7 @@ class Experiment:
 		self.training_inputs, self.training_outputs = incorporate_history(
 			flatten_data(self.data_full, config.input_src),
 			flatten_data(self.data_full, config.output_src),
-			config.history)
+			config.history, rnn=config.rnn)
 		self.original_loss = F.mse_loss(
 			torch.FloatTensor(flatten_data(self.data_full, config.original_preds)).to(self.device),
 			torch.FloatTensor(flatten_data(self.data_full, config.output_src)).to(self.device)
@@ -51,8 +51,12 @@ class Experiment:
 		self.save_freq = config.save_freq
 		self.log_freq = config.log_freq
 
-		self.model = CalibrationModel(self.training_inputs.shape[1], self.training_outputs.shape[1])
+		if config.rnn:
+			self.model = CalibrationLSTM(self.training_inputs.shape[2], self.training_outputs.shape[1])
+		else:
+			self.model = CalibrationModel(self.training_inputs.shape[1], self.training_outputs.shape[1])
 		self.optimizer = Adam(self.model.parameters(), lr=config.lr)
+		self.rnn = config.rnn
 
 		self.training_losses = []
 		self.validation_losses = []
@@ -76,7 +80,17 @@ class Experiment:
 			batch_inputs, batch_outputs = self.dataset(self.batch_size)
 			batch_inputs = torch.FloatTensor(batch_inputs).to(self.device)
 			batch_outputs = torch.FloatTensor(batch_outputs).to(self.device)
-			preds = self.model(batch_inputs)
+			if self.rnn:
+				preds = []
+				# TODO: vectorize the following code
+				for j in range(self.batch_size):
+					input_seq = batch_inputs[j]
+					self.model.hidden_cell = (torch.zeros(1, 1, self.model.hidden_layer_size),
+							torch.zeros(1, 1, self.model.hidden_layer_size))
+					preds.append(self.model(input_seq))
+				preds = torch.stack(preds)
+			else:
+				preds = self.model(batch_inputs)
 			loss = F.mse_loss(preds, batch_outputs)
 			loss.backward()
 			self.optimizer.step()
@@ -84,8 +98,18 @@ class Experiment:
 			val_batch_inputs, val_batch_outputs = self.val_dataset()
 			val_batch_inputs = torch.FloatTensor(val_batch_inputs).to(self.device)
 			val_batch_outputs = torch.FloatTensor(val_batch_outputs).to(self.device)
-			val_preds = self.model(val_batch_inputs)
-			val_loss = F.mse_loss(val_preds, val_batch_outputs)
+			with torch.no_grad():
+				if self.rnn:
+					val_preds = []
+					for j in range(len(val_batch_inputs)):
+						input_seq = val_batch_inputs[j]
+						self.model.hidden_cell = (torch.zeros(1, 1, self.model.hidden_layer_size),
+								torch.zeros(1, 1, self.model.hidden_layer_size))
+						val_preds.append(self.model(input_seq))
+					val_preds = torch.stack(val_preds)
+				else:
+					val_preds = self.model(val_batch_inputs)
+				val_loss = F.mse_loss(val_preds, val_batch_outputs)
 
 			self.training_losses.append(loss.detach().cpu().numpy())
 			self.validation_losses.append(val_loss.detach().cpu().numpy())
@@ -132,6 +156,7 @@ def create_config():
 	config.save_freq = 10
 	config.log_freq = 10
 	config.validation_prob = 0.1
+	config.rnn = False
 	return config
 
 if __name__ == '__main__':

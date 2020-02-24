@@ -32,8 +32,12 @@ def flatten_data(dataset, keys):
 		ndata.append(dataset[k])
 	return np.hstack(ndata)
 
-def incorporate_history(data_arr_in, data_arr_out, horizon):
-	if horizon == 1:
-		return data_arr_in, data_arr_out
-	return (np.hstack([data_arr_in[i:data_arr_in.shape[0] - horizon + i + 1] for i in range(horizon)]),
-		data_arr_out[:-horizon+1])
+def incorporate_history(data_arr_in, data_arr_out, horizon, rnn=False):
+	if rnn:
+		return (np.stack([data_arr_in[i:data_arr_in.shape[0] - horizon + i + 1] for i in range(horizon)], axis=1),
+			data_arr_out[:-horizon+1])
+	else:
+		if horizon == 1:
+			return data_arr_in, data_arr_out
+		return (np.hstack([data_arr_in[i:data_arr_in.shape[0] - horizon + i + 1] for i in range(horizon)]),
+			data_arr_out[:-horizon+1])
