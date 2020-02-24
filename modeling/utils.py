@@ -26,16 +26,18 @@ def join_data(dataset1, dataset2):
 		new_dataset[k] = np.vstack((dataset1[k], dataset2[k]))
 	return new_dataset
 
-def flatten_data(dataset, keys):
+def flatten_data(dataset, keys, labels=False):
 	ndata = []
 	actual_keys = []
 	for k in keys:
-		if "actual" in keys:
+		if "actual" in k and not labels:
 			actual_keys.append(k)
-		ndata.append(dataset[k])
+		else:
+			ndata.append(dataset[k])
 	for k in actual_keys:
 		entry_copy = np.zeros_like(dataset[k])
 		entry_copy[1:] = dataset[k][:-1]
+		ndata.append(entry_copy)
 	return np.hstack(ndata)
 
 def incorporate_history(data_arr_in, data_arr_out, horizon, rnn=False):

@@ -26,13 +26,13 @@ class Experiment:
 		self.random_data_full = load_data(config.random_data)
 		self.data_full = join_data(self.peg_data_full, self.random_data_full)
 		self.training_inputs, self.training_outputs = incorporate_history(
-			flatten_data(self.data_full, config.input_src),
-			flatten_data(self.data_full, config.output_src),
+			flatten_data(self.data_full, config.input_src, labels=False),
+			flatten_data(self.data_full, config.output_src, labels=True),
 			config.history, rnn=config.rnn)
-		self.original_preds = torch.FloatTensor(flatten_data(self.data_full, config.original_preds)).to(self.device)
+		self.original_preds = torch.FloatTensor(flatten_data(self.data_full, config.original_preds, labels=True)).to(self.device)
 		self.original_loss = F.mse_loss(
 			self.original_preds,
-			torch.FloatTensor(flatten_data(self.data_full, config.output_src)).to(self.device)
+			torch.FloatTensor(flatten_data(self.data_full, config.output_src, labels=True)).to(self.device)
 			).detach().cpu().numpy()
 		self.use_original_preds = config.use_original_preds
 
@@ -155,7 +155,7 @@ def create_config():
 	config.output_src = ["joint_actual"]
 	config.original_preds = ["joint_desired"]
 	config.use_original_preds = False # this overfits for some reason...
-	config.history = 5
+	config.history = 4
 	config.batch_size = 100
 	config.training_iterations = 5000
 	config.lr = 1e-3
