@@ -1,10 +1,12 @@
 import os
 import os.path as osp
+import pickle
 
 import datetime
 from dotmap import DotMap
 import matplotlib.pyplot as plt
 import numpy as np
+import pprint
 import torch
 from torch.optim import Adam
 import torch.nn.functional as F
@@ -37,6 +39,8 @@ class Experiment:
 		self.training_outputs = self.training_outputs[validation_size:]
 		self.val_inputs = self.training_inputs[:validation_size]
 		self.val_outputs = self.training_outputs[:validation_size]
+		self.config.input_dim = self.training_inputs.shape[1]
+		self.config.output_dim = self.training_outputs.shape[1]
 
 		self.dataset = Dataset(self.training_inputs, self.training_outputs)
 		self.val_dataset = Dataset(self.val_inputs, self.val_outputs)
@@ -57,6 +61,10 @@ class Experiment:
 			os.makedirs(self.save_dir)
 		self.config.save_dir = self.save_dir = osp.join(self.save_dir, datetime.datetime.now().strftime("%Y-%m-%d--%H:%M:%S"))
 		os.makedirs(self.save_dir)
+		with open(osp.join(self.save_dir, "config.pkl"), "wb") as f:
+			pickle.dump(self.config, f)
+		with open(osp.join(self.save_dir, "config.txt"), "w") as f:
+			f.write(pprint.pformat(self.config.toDict()))
 
 	def reset(self):
 		self.training_losses = []
