@@ -134,6 +134,7 @@ class Experiment:
 		plt.title("Loss Curve")
 		plt.xlabel("Iteration")
 		plt.ylabel("MSE Loss")
+		plt.ylim(0, 0.05)
 		if save:
 			plt.savefig(osp.join(self.save_dir, "losses.png"))
 		if show:
@@ -144,7 +145,7 @@ def create_config():
 	config = DotMap()
 	config.peg_data = "training_dataset_brijen/peg_transfer"
 	config.random_data = "training_dataset_brijen/random"
-	config.input_src = ["joint_desired", "quaternion_desired"]
+	config.input_src = ["joint_desired", "quaternion_desired", "joint_actual"]
 	config.output_src = ["joint_actual"]
 	config.original_preds = ["joint_desired"]
 	config.history = 5
@@ -156,7 +157,7 @@ def create_config():
 	config.save_freq = 10
 	config.log_freq = 10
 	config.validation_prob = 0.1
-	config.rnn = True
+	config.rnn = False
 	return config
 
 if __name__ == '__main__':
