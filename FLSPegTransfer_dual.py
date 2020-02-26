@@ -12,6 +12,7 @@ from FLSpegtransfer.vision.ZividCapture import ZividCapture
 # from FLSpegtransfer.motion.dvrkBlockTransfer import dvrkBlockTransfer
 import FLSpegtransfer.utils.CmnUtil as U
 
+
 class FLSPegTransfer():
     def __init__(self):
         # import other modules

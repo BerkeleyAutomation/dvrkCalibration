@@ -1,7 +1,7 @@
 import socket
 import struct
 import threading, time
-from FLSpegtransfer.motion.dvrkDualArm import dvrkDualArm
+from dvrkDualArm import dvrkDualArm
 
 class dvrkMotionBridgeM():
     def __init__(self):

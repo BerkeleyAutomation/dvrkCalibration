@@ -31,9 +31,7 @@ class dvrkCalibration():
         self.__time_sleep = 0.3
 
         # Load trajectory
-        # filename = root+'experiment/trajectory/short_traj_random.npy'
-        filename = root + 'experiment/trajectory/training_traj_random.npy'
-        # filename = root + 'experiment/trajectory/training_traj_peg_transfer.npy'
+        filename = root+'experiment/0_trajectory_extraction/verification_traj_peg_transfer.npy'
         self.joint_traj = self.load_trajectory(filename)
 
     def load_trajectory(self, filename):
@@ -197,16 +195,6 @@ class dvrkCalibration():
                     q_des.append([qd1, qd2, qd3, qd4, qd5, qd6])
                     q_act.append([qa1, qa2, qa3, qa4, qa5, qa6])
                     time_stamp.append(time.time() - time_st)
-
-                    # # poses
-                    # pos_des_temp = self.BD.fk_position(q1=qd1, q2=qd2, q3=qd3, q4=0, q5=0, q6=0,
-                    #                                                      L1=self.BD.L1, L2=self.BD.L2, L3=0, L4=0)
-                    # pos_act_temp = self.BD.fk_position(q1=qa1, q2=qa2, q3=qa3, q4=0, q5=0, q6=0,
-                    #                                                      L1=self.BD.L1, L2=self.BD.L2, L3=0, L4=0)
-                    # pos_des.append(pos_des_temp)
-                    # pos_act.append(pos_act_temp)
-                    # ort_des_temp = self.BD.find_tool_orientation()
-
                     print('index: ', len(q_des),'/',len(j1))
                     print('t_stamp: ', time.time() - time_st)
                     print('q_des: ', [qd1, qd2, qd3, qd4, qd5, qd6])
@@ -218,6 +206,7 @@ class dvrkCalibration():
                                                                 L1=self.BD.L1, L2=self.BD.L2, L3=0, L4=0)
                     pos_des.append(pos_des_temp)
                     pos_act.append(pt)
+                    print('index: ', len(pos_des), '/', len(j1))
                     print('pos_des: ', pos_des_temp)
                     print('pos_act: ', pt)
                     print(' ')
@@ -229,15 +218,15 @@ class dvrkCalibration():
         finally:
             # Save data to a file
             if transform == 'known':
-                np.save('q_des', q_des)
-                np.save('q_act', q_act)
+                np.save('q_des_raw', q_des)
+                np.save('q_act_raw', q_act)
             elif transform == 'unknown':
                 # Get transform from robot to camera
                 np.save('pos_des', pos_des)
                 np.save('pos_act', pos_act)
                 T = U.get_rigid_transform(np.array(pos_act), np.array(pos_des))
                 np.save('Trc', T)
-            np.save('t_stamp', time_stamp)
+            np.save('t_stamp_raw', time_stamp)
             print("Data is successfully saved")
 
 if __name__ == "__main__":

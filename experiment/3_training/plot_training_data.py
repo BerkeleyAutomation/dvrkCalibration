@@ -2,13 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from FLSpegtransfer.vision.BallDetection import BallDetection
-
-root = '/home/hwangmh/pycharmprojects/FLSpegtransfer/'
 plt.style.use('seaborn-whitegrid')
 
+def index_outlier(trajectory):
+    index = []
+    for i,joints in enumerate(trajectory):
+        if joints[3]==joints[4]==joints[5]==0.0:
+            print ('faulted data: ', i)
+            index.append(i)
+    return index
+
 # Trajectory check
-BD = BallDetection()
-file_path = root+'experiment/3_training/random/'
+file_path = 'peg_transfer/'
 q_des = np.load(file_path + 'joint_des.npy')    # desired joint angles: [q1, ..., q6]
 q_act = np.load(file_path + 'joint_act.npy')    # actual joint angles: [q1, ..., q6]
 pos_des = np.load(file_path + 'position_des.npy')  # desired position: [x,y,z]

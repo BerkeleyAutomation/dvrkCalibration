@@ -131,11 +131,11 @@ if __name__ == "__main__":
     pos1 = [0.0, 0.0, -0.13]
     rot1 = [0.0, 0.0, 0.0]
     q1 = U.euler_to_quaternion(rot1, unit='deg')
-    jaw1 = [10]*np.pi/180.
+    jaw1 = [0*np.pi/180.]
     pos2 = [0.0, 0.0, -0.13]
     rot2 = [0.0, 0.0, 0.0]
     q2 = U.euler_to_quaternion(rot2, unit='deg')
-    jaw2 = [0.0]*np.pi/180.
+    jaw2 = [0.0*np.pi/180.]
     perception.set_pose(jaw1=jaw1)
     joint1 = [0.0, 0.0, 0.13, 0.0, 0.0, 0.0]
     joint2 = [0.0, 0.0, 0.13, 0.0, 0.0, 0.0]

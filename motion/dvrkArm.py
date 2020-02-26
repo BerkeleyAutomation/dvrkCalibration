@@ -333,20 +333,28 @@ if __name__ == "__main__":
     pos1 = [0.0, 0.0, -0.13]
     rot1 = [0.0, 0.0, 0.0]
     q1 = U.euler_to_quaternion(rot1, unit='deg')
-    jaw1 = [0.2]
+    jaw1 = [20*np.pi/180.]
     pos2 = [0.0, 0.0, -0.13]
     rot2 = [0.0, 0.0, 0.0]
     q2 = U.euler_to_quaternion(rot2, unit='deg')
     jaw2 = [0.0]
     joint1 = [0.9, 0.0, 0.15, 1.0, 0.0, 0.0]
     joint2 = [0.0, 0.0, 0.13, 0.0, 0.0, 0.0]
-    t = 0.0
-    while True:
-        t += 0.01
-        joint1[4] = 0.8*np.sin(2*3.14*t)
-        joint1[5] = 0.8*np.sin(2*3.14*t)
-        p1.set_joint(joint1)
-        # rot1[1] = 60*np.sin(2*3.14*t*3)
-        # q1 = U.euler_to_quaternion(rot1, unit='deg')
-        # p1.set_pose(rot=q1)
-        # p1.set_jaw(jaw1)
+
+    rot1[0] = 0
+    rot1[2] = 50
+    rot1[1] = -30
+    q1 = U.euler_to_quaternion(rot1, unit='deg')
+    p1.set_pose(rot=q1)
+    p1.set_jaw(jaw1)
+
+    # t = 0.0
+    # while True:
+    #     t += 0.01
+    #     joint1[4] = 0.8*np.sin(2*3.14*t)
+    #     joint1[5] = 0.8*np.sin(2*3.14*t)
+    #     p1.set_joint(joint1)
+    #     # rot1[1] = 60*np.sin(2*3.14*t*3)
+    #     # q1 = U.euler_to_quaternion(rot1, unit='deg')
+    #     # p1.set_pose(rot=q1)
+    #     # p1.set_jaw(jaw1)

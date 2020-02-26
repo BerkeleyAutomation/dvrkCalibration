@@ -5,11 +5,14 @@ import numpy as np
 ESC_KEYS = [27, 1048603]
 MILLION = float(10**6)
 
+
 def rad_to_deg(rad):
     return np.array(rad) *180./np.pi
 
+
 def deg_to_rad(deg):
     return np.array(deg) *np.pi/180.
+
 
 def normalize(v):
     norm=np.linalg.norm(v, ord=2)
@@ -17,8 +20,6 @@ def normalize(v):
         norm=np.finfo(v.dtype).eps
     return v/norm
 
-# def LPF(data_curr, data_prev, fc, dt):
-#     return 2*np.pi*fc*dt*data_curr + (1-2*np.pi*fc*dt)*data_prev;
 
 def LPF(raw_data, fc, dt):
     filtered = np.zeros_like(raw_data)
@@ -28,6 +29,7 @@ def LPF(raw_data, fc, dt):
         else:
             filtered[i] = 2*np.pi*fc*dt*raw_data[i] + (1-2*np.pi*fc*dt)*filtered[i-1]
     return filtered
+
 
 def euler_to_quaternion(rot, unit='rad'):
     if unit=='deg':
@@ -49,6 +51,7 @@ def euler_to_quaternion(rot, unit='rad'):
     qz = sy * cp * cr - cy * sp * sr;
 
     return [qx, qy, qz, qw]
+
 
 def quaternion_to_eulerAngles(q, unit='rad'):
     qx, qy, qz, qw = q
@@ -72,6 +75,7 @@ def quaternion_to_eulerAngles(q, unit='rad'):
         [roll, pitch, yaw] = rad_to_deg([roll, pitch, yaw])
     return [roll,pitch,yaw]
 
+
 def R_to_euler(R):
     sy = np.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
     singular = sy < 1e-6
@@ -85,6 +89,7 @@ def R_to_euler(R):
         z = 0
     return np.array([x, y, z])
 
+
 def R_to_quaternion(R):
     qw = np.sqrt((1. + R[0][0] + R[1][1] + R[2][2])/2.)
     qx = (R[2][1] - R[1][2]) / (4. * qw)
@@ -92,11 +97,6 @@ def R_to_quaternion(R):
     qz = (R[1][0] - R[0][1]) / (4. * qw)
     return qx,qy,qz,qw
 
-# quat_des = []
-# for q in q_des:
-#     R = BD.fk_orientation(q[0], q[1], q[2], q[3], q[4], q[5])
-#     R_matrix = PyKDL.Rotation(R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2])
-#     quat_des.append(list(R_matrix.GetQuaternion()))
 
 # Get a rigid transformation matrix from pts1 to pts2
 def get_rigid_transform(pts1, pts2):
@@ -118,12 +118,35 @@ def get_rigid_transform(pts1, pts2):
     T[-1, -1] = 1
     return T
 
+
+def create_waveform(data_range, amp1, amp2, amp3, amp4, freq1, freq2, freq3, freq4, phase, step):
+    t = np.arange(0, 1, 1.0 / step)
+    waveform1 = amp1*np.sin(2*np.pi*freq1*(t-phase))
+    waveform2 = amp2*np.sin(2*np.pi*freq2*(t-phase))
+    waveform3 = amp3*np.sin(2*np.pi*freq3*(t-phase))
+    waveform4 = amp4*np.sin(2*np.pi*freq4*(t-phase))
+    waveform = waveform1 + waveform2 + waveform3 + waveform4
+    x = waveform / max(waveform)
+    y = (data_range[1]-data_range[0])/2.0*x + (data_range[1]+data_range[0])/2.0
+    return t, y
+
+
 if __name__ == '__main__':
     # calculate_transformation()
     # filename = '/home/hwangmh/pycharmprojects/FLSpegtransfer/vision/coordinate_pairs.npy'
     # data = np.load(filename)
     # print(data)
+
     pts1 = [[0, 1, 0], [1, 0, 0], [0, -1, 0]]
     pts2 = [[-0.7071, 0.7071, 0], [0.7071, 0.7071, 0], [0.7071, -0.7071, 0]]
     T = get_rigid_transform(pts1, pts2)
     print(T)
+
+    # f = 6  # (Hz)
+    # A = 1  # amplitude
+    # t, waveform = create_waveform(interp=[0.1, 0.5], amp1=A, amp2=A * 3, amp3=A * 4, freq1=f, freq2=f * 1.8,
+    #                               freq3=f * 1.4, phase=0.0, step=200)
+    # t, waveform = create_waveform(interp=[0.1, 0.5], amp1=A, amp2=A * 1.2, amp3=A * 4.2, freq1=0.8 * f, freq2=f * 1.9,
+    #                               freq3=f * 1.2, phase=0.5, step=200)
+    # t, waveform = create_waveform(interp=[0.1, 0.5], amp1=A, amp2=A * 1.5, amp3=A * 3.5, freq1=f, freq2=f * 1.8,
+    #                               freq3=f * 1.3, phase=0.3, step=200)
