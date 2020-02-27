@@ -5,13 +5,13 @@ import FLSpegtransfer.utils.CmnUtil as U
 root = '/home/hwangmh/pycharmprojects/FLSpegtransfer/'
 plt.style.use('seaborn-whitegrid')
 # plt.style.use('bmh')
-plt.rc('font', size=12)          # controls default text sizes
-plt.rc('axes', titlesize=20)     # fontsize of the axes title
-plt.rc('axes', labelsize=15)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=10)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=10)    # fontsize of the tick labels
-plt.rc('legend', fontsize=15)    # legend fontsize
-plt.rc('figure', titlesize=10)  # fontsize of the figure title
+plt.rc('font', size=15)          # controls default text sizes
+plt.rc('axes', titlesize=21)     # fontsize of the axes title
+plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=11)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=11)    # fontsize of the tick labels
+plt.rc('legend', fontsize=14)    # legend fontsize
+plt.rc('figure', titlesize=11)  # fontsize of the figure title
 
 
 file_path = root + 'experiment/1_rigid_transformation/'
@@ -22,13 +22,10 @@ T = U.get_rigid_transform(np.array(pos_act), np.array(pos_des))
 R = T[:3, :3]
 t = T[:3, 3]
 pos_act = np.array([R.dot(p) + t for p in pos_act])
-# pos_des = pos_des * 1000  # (mm)
-# pos_act = pos_act * 1000  # (mm)
-
 
 # RMSE error calc
 RMSE = np.sqrt(np.sum((pos_des - pos_act) ** 2)/len(pos_des))
-print("RMSE=", RMSE, '(mm)')
+print("RMSE=", RMSE, '(m)')
 
 # plot trajectory of des & act position
 fig = plt.figure()

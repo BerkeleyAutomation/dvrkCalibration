@@ -36,6 +36,8 @@ ax.set_zlabel('z (mm)')
 plt.legend(['desired', 'actual'])
 plt.show()
 
+print (t_stamp)
+
 # plot joint angles
 RMSE = []
 for i in range(6):

@@ -5,9 +5,9 @@ plt.style.use('seaborn-whitegrid')
 # plt.style.use('bmh')
 plt.rc('font', size=12)          # controls default text sizes
 plt.rc('axes', titlesize=20)     # fontsize of the axes title
-plt.rc('axes', labelsize=15)    # fontsize of the x and y labels
+plt.rc('axes', labelsize=13)    # fontsize of the x and y labels
 plt.rc('xtick', labelsize=10)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=10)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
 plt.rc('legend', fontsize=15)    # legend fontsize
 plt.rc('figure', titlesize=10)  # fontsize of the figure title
 
@@ -20,31 +20,36 @@ def plot_joint(t, q_des, q_act):
 
     # Create plot
     # plt.title('joint angle')
-    plt.subplot(611)
-    plt.plot(t, q_des[:,0]*180./np.pi, 'b-', label='desired')
-    plt.plot(t, q_act[:, 0] * 180. / np.pi, 'r-', label = 'actual')
+    ax = plt.subplot(611)
+    plt.plot(t, q_des[:,0]*180./np.pi, 'b-')
+    plt.plot(t, q_act[:, 0] * 180. / np.pi, 'r-')
     plt.legend(loc='upper center', bbox_to_anchor=(0.9,2))
     # plt.ylim([35, 62])
+    ax.set_xticklabels([])
     plt.ylabel('q1 ($^\circ$)')
 
-    plt.subplot(612)
+    ax = plt.subplot(612)
     plt.plot(t, q_des[:,1]*180./np.pi, 'b-', t, q_act[:, 1] * 180. / np.pi, 'r-')
     # plt.ylim([-10, 12])
+    ax.set_xticklabels([])
     plt.ylabel('q2 ($^\circ$)')
 
-    plt.subplot(613)
+    ax = plt.subplot(613)
     plt.plot(t, q_des[:, 2], 'b-', t, q_act[:, 2], 'r-')
     # plt.ylim([0.14, 0.23])
+    ax.set_xticklabels([])
     plt.ylabel('q3 (m)')
 
-    plt.subplot(614)
+    ax = plt.subplot(614)
     plt.plot(t, q_des[:, 3]*180./np.pi, 'b-', t, q_act[:, 3]*180./np.pi, 'r-')
     # plt.ylim([-90, 70])
+    ax.set_xticklabels([])
     plt.ylabel('q4 ($^\circ$)')
 
-    plt.subplot(615)
+    ax = plt.subplot(615)
     plt.plot(t, q_des[:, 4]*180./np.pi, 'b-', t, q_act[:, 4]*180./np.pi, 'r-')
     # plt.ylim([-60, 60])
+    ax.set_xticklabels([])
     plt.ylabel('q5 ($^\circ$)')
 
     plt.subplot(616)
@@ -121,14 +126,16 @@ print("RMSE=", RMSE)
 a = np.array([0.0011056588332598058, 0.0008525214150257456, 0.0002552505091222723, 0.18546438570214177, 0.19254814471919304, 0.3598571164612135])*180./np.pi
 print(a)
 
-plt.subplot(311)
-plt.plot(t, q_des[:, 3] * 180. / np.pi, 'b-', label='desired')
-plt.plot(t, q_act[:, 3] * 180. / np.pi, 'r-', label='actual')
+ax = plt.subplot(311)
+plt.plot(t, q_des[:, 3] * 180. / np.pi, 'b-')
+plt.plot(t, q_act[:, 3] * 180. / np.pi, 'r-')
 plt.ylabel('q4 ($^\circ$)')
+ax.set_xticklabels([])
 
-plt.subplot(312)
+ax = plt.subplot(312)
 plt.plot(t, q_des[:, 4] * 180. / np.pi, 'b-', t, q_act[:, 4] * 180. / np.pi, 'r-')
 plt.ylabel('q5 ($^\circ$)')
+ax.set_xticklabels([])
 
 plt.subplot(313)
 plt.plot(t, q_des[:, 5] * 180. / np.pi, 'b-', t, q_act[:, 5] * 180. / np.pi, 'r-')
@@ -145,13 +152,14 @@ t = range(len(q_des))
 RMSE = np.sqrt(np.mean((q_des[:, 4] - q_act[:, 4]) ** 2))
 print("RMSE=", RMSE)
 
-plt.subplot(211)
-plt.plot(t, q_des[:, 4] * 180. / np.pi, 'b-', label='desired')
-plt.plot(t, q_act[:, 4] * 180. / np.pi, 'r-', label='actual')
+ax = plt.subplot(211)
+plt.plot(t, q_des[:, 4] * 180. / np.pi, 'b-')
+plt.plot(t, q_act[:, 4] * 180. / np.pi, 'r-')
 # plt.ylim([-60, 60])
 plt.ylabel('q5 ($^\circ$)')
+ax.set_xticklabels([])
 
-plt.subplot(212)
+ax = plt.subplot(212)
 plt.plot(t, q_des[:, 5] * 180. / np.pi, 'b-', t, q_act[:, 5] * 180. / np.pi, 'r-')
 # plt.ylim([-60, 60])
 plt.ylabel('q6 ($^\circ$)')
@@ -167,11 +175,13 @@ t = range(len(q_des))
 RMSE = np.sqrt(np.mean((q_des[:, 5] - q_act[:, 5]) ** 2))
 print("RMSE=", RMSE)
 
-plt.subplot(211)
-plt.plot(t, q_des[:, 4] * 180. / np.pi, 'b-', label='desired')
-plt.plot(t, q_act[:, 4] * 180. / np.pi, 'r-', label='actual')
+
+ax = plt.subplot(211)
+plt.plot(t, q_des[:, 4] * 180. / np.pi, 'b-')
+plt.plot(t, q_act[:, 4] * 180. / np.pi, 'r-')
 # plt.ylim([-60, 60])
 plt.ylabel('q5 ($^\circ$)')
+ax.set_xticklabels([])
 
 plt.subplot(212)
 plt.plot(t, q_des[:, 5] * 180. / np.pi, 'b-', t, q_act[:, 5] * 180. / np.pi, 'r-')
