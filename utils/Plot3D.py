@@ -14,6 +14,7 @@ plt.rc('ytick', labelsize=10)    # fontsize of the tick labels
 plt.rc('legend', fontsize=15)    # legend fontsize
 plt.rc('figure', titlesize=10)  # fontsize of the figure title
 
+
 def create_waveform(interp, amp1, amp2, amp3, amp4, freq1, freq2, freq3, freq4, phase, step):
     t = np.arange(0, 1, 1.0 / step)
     waveform1 = amp1*np.sin(2*np.pi*freq1*(t-phase))
@@ -24,6 +25,7 @@ def create_waveform(interp, amp1, amp2, amp3, amp4, freq1, freq2, freq3, freq4, 
     x = waveform / max(waveform)
     y = (interp[1]-interp[0])/2.0*x + (interp[1]+interp[0])/2.0
     return t, y
+
 
 def plot_arbitrary_waveform():
     f = 6   # (Hz)
@@ -48,6 +50,7 @@ def plot_arbitrary_waveform():
     ax.set_ylabel('y')
     plt.title('arbitrary waveform')
     plt.show()
+
 
 def plot_joint(t, q_des, q_act):
     RMSE = []
@@ -78,6 +81,7 @@ def plot_joint(t, q_des, q_act):
     plt.xlabel('(step)')
     plt.show()
 
+
 def save_outlier(trajectory, n_data):
     for i,joints in enumerate(trajectory):
         if joints[3]==joints[4]==joints[5]==0.0:
@@ -97,6 +101,7 @@ def save_outlier(trajectory, n_data):
                 trajectory[i][j+3] = c[0]*i**3 + c[1]*i**2 + c[2]*i + c[3]
     return trajectory
 
+
 def index_outlier(trajectory):
     index = []
     for i,joints in enumerate(trajectory):
@@ -104,6 +109,7 @@ def index_outlier(trajectory):
             print ('faulted data: ', i)
             index.append(i)
     return index
+
 
 from FLSpegtransfer.vision.BallDetection import BallDetection
 def plot_error_identification():

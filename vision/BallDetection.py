@@ -35,7 +35,7 @@ class BallDetection():
         self.L4 = 0.0102  # yaw ~ tip (m)
 
         # Transform from camera to robot
-        self.Trc = np.load(root+'experiment/0_rigid_transformation/Trc.npy')
+        self.Trc = np.load(root+'experiment/1_rigid_transformation/Trc.npy')
         self.Rrc = self.Trc[:3, :3]
         self.trc = self.Trc[:3, 3]
 
@@ -207,7 +207,15 @@ class BallDetection():
                 args = np.argwhere(ball_masked == 255)
                 points_ball = np.array([img_point[p[0], p[1]] for p in args])
 
-                # Linear square method to fit the circle into the point cloud
+                # Saving images
+                # black = np.zeros_like(img_color)
+                # for p in args:
+                #     black[p[0], p[1]] = img_color[p[0], p[1]]
+                # cv2.imshow("masked", black)
+                # cv2.imwrite("masked.png", black)
+                # cv2.waitKey(0)
+
+                # Linear regression to fit the circle into the point cloud
                 xc, yc, zc, rc = self.fit_circle_3d(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2])
                 if radius[i]-2 < rc < radius[i]+2:
                     pb.append([xc, yc, zc, rc])
@@ -442,6 +450,7 @@ if __name__ == "__main__":
                     print(q5*180/np.pi)
                     img_color = BD.overlay_tool(img_color, [q1, q2, q3, q4, q5, q6], (0,255,0))
 
+            cv2.imwrite("ball_detected.png", img_color)
             cv2.imshow("images", img_color)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

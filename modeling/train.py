@@ -1,12 +1,12 @@
 import os
 import os.path as osp
 import pickle
+import pprint
 
 import datetime
 from dotmap import DotMap
 import matplotlib.pyplot as plt
 import numpy as np
-import pprint
 import torch
 from torch.optim import Adam
 import torch.nn.functional as F
@@ -54,24 +54,7 @@ def format_data(H, fname, use_actual_inputs=False, rnn=False):
 		histories = np.hstack(histories)
 	return histories, cmds, phys
 
-def eval_rnn(model, batch_inputs):
-	# TODO: vectorize, needlessly inefficient currently
-	# preds = []
-	# print(batch_inputs.shape)
-	# model.hidden_cell = (torch.zeros(1, 1, model.hidden_layer_size),
-	# 			torch.zeros(1, 1, model.hidden_layer_size))
-	return model(batch_inputs)
-	# import IPython; IPython.embed()
-	# assert 0
-	# for j in range(len(batch_inputs)):
-	# 	input_seq = batch_inputs[j]
-	# 	model.hidden_cell = (torch.zeros(1, 1, model.hidden_layer_size),
-	# 			torch.zeros(1, 1, model.hidden_layer_size))
-	# 	preds.append(model(input_seq))
-	# preds = torch.stack(preds)
-	# return preds
-
-def compute_loss(model, batch_histories, batch_cmds, batch_phys, is_forward, is_rnn, device):
+def compute_standard_loss(model, batch_histories, batch_cmds, batch_phys, is_forward, is_rnn, device):
 	if is_forward:
 		if is_rnn:
 			batch_inputs = np.hstack((batch_histories, batch_cmds[:,np.newaxis,:]))
@@ -132,7 +115,7 @@ class Experiment:
 		self.device = torch.device(config.device)
 
 		# Load and format data		
-		histories, cmds, phys = format_data(config.history, config.random_data, config.actual_inputs, config.rnn)
+		histories, cmds, phys = format_data(config.history, config.training_data, config.actual_inputs, config.rnn)
 		self.validation_size = int(config.validation_prob * len(histories))
 		self.training_histories = histories[self.validation_size:]
 		self.training_cmds = cmds[self.validation_size:]
@@ -197,8 +180,8 @@ class Experiment:
 			# Sample training batch, compute loss, then take a step with Adam
 			self.optimizer.zero_grad()
 			batch_histories, batch_cmds, batch_phys = self.dataset(self.batch_size)
-			fwd_loss = compute_loss(self.forward_model, batch_histories, batch_cmds, batch_phys, True, self.rnn, self.device)
-			inv_loss = compute_loss(self.inverse_model, batch_histories, batch_cmds, batch_phys, False, self.rnn, self.device)
+			fwd_loss = compute_standard_loss(self.forward_model, batch_histories, batch_cmds, batch_phys, True, self.rnn, self.device)
+			inv_loss = compute_standard_loss(self.inverse_model, batch_histories, batch_cmds, batch_phys, False, self.rnn, self.device)
 			consistency_loss = compute_cyclic_losses(self.forward_model, self.inverse_model, batch_histories, batch_cmds, batch_phys, self.rnn, self.device)
 
 			loss = fwd_loss + inv_loss + self.consistency_weight * consistency_loss
@@ -208,8 +191,8 @@ class Experiment:
 			# Compute validation losses
 			val_batch_histories, val_batch_cmds, val_batch_phys = self.val_dataset()
 			with torch.no_grad():
-				fwd_loss_val = compute_loss(self.forward_model, val_batch_histories, val_batch_cmds, val_batch_phys, True, self.rnn, self.device)
-				inv_loss_val = compute_loss(self.inverse_model, val_batch_histories, val_batch_cmds, val_batch_phys, False, self.rnn, self.device)
+				fwd_loss_val = compute_standard_loss(self.forward_model, val_batch_histories, val_batch_cmds, val_batch_phys, True, self.rnn, self.device)
+				inv_loss_val = compute_standard_loss(self.inverse_model, val_batch_histories, val_batch_cmds, val_batch_phys, False, self.rnn, self.device)
 				consistency_loss_val = compute_cyclic_losses(self.forward_model, self.inverse_model, val_batch_histories, val_batch_cmds, val_batch_phys, self.rnn, self.device)
 
 			# Log loss data
@@ -290,6 +273,7 @@ def create_config():
 	config = DotMap()
 	config.peg_data = "training_dataset_brijen/peg_transfer"
 	config.random_data = "training_dataset_brijen/random"
+	config.training_data = config.random_data # which dataset to train on
 	config.actual_inputs = False # whether to use actual as input
 	config.history = 10
 	config.batch_size = 100

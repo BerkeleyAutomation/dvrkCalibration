@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Dataset:
 	def __init__(self, histories, cmds, phys):
 		self.histories = histories
@@ -24,6 +25,5 @@ class Dataset:
 			else:
 				return self.histories[indices], self.cmds[indices], self.phys[indices]
 
-	def __call__(self, batch_size=None, ret_indices=False):
-		return self.sample_batch(batch_size, ret_indices)
-	
+	def __call__(self, batch_size=None):
+		return self.sample_batch(batch_size)

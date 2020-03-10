@@ -66,12 +66,13 @@ class ZividCapture():
 
 if __name__ == "__main__":
     zc = ZividCapture()
+    import time
     while True:
         # image2D = zc.capture_2Dimage()
-        # image, depth, point = zc.capture_3Dimage()
-        image = zc.capture_2Dimage()
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        image, depth, point = zc.capture_3Dimage()
+        # image = zc.capture_2Dimage()
+        # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         # print (np.shape(point))
-
-        cv2.imshow("", image)
-        cv2.waitKey(1)
+        time.sleep(0.3)
+        # cv2.imshow("", image)
+        # cv2.waitKey(1)
