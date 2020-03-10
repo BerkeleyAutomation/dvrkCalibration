@@ -88,17 +88,14 @@ def compute_cyclic_losses(forward_model, inverse_model, batch_histories, batch_c
 	batch_cmds = torch.FloatTensor(batch_cmds).to(device)
 	batch_phys = torch.FloatTensor(batch_phys).to(device)
 
-	if is_rnn:
-		pred_states = forward_model(batch_forward_inputs)
-		reconstructed_actions = inverse_model(torch.cat((batch_histories, pred_states.unsqueeze(1)), 1))
+	pred_states = forward_model(batch_forward_inputs)
+	pred_actions = inverse_model(batch_inverse_inputs)
 
-		pred_actions = inverse_model(batch_inverse_inputs)
+	if is_rnn:
+		reconstructed_actions = inverse_model(torch.cat((batch_histories, pred_states.unsqueeze(1)), 1))
 		reconstructed_states = forward_model(torch.cat((batch_histories, pred_actions.unsqueeze(1)), 1))
 	else:
-		pred_states = forward_model(batch_forward_inputs)
 		reconstructed_actions = inverse_model(torch.cat((batch_histories, pred_states), 1))
-
-		pred_actions = inverse_model(batch_inverse_inputs)
 		reconstructed_states = forward_model(torch.cat((batch_histories, pred_actions), 1))
 
 	action_loss = F.mse_loss(reconstructed_actions, batch_cmds)

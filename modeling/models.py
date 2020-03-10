@@ -27,7 +27,7 @@ class CalibrationModel(nn.Module):
 
 class LinearModel(nn.Module):
 
-    def __init__(self, num_inputs, num_outputs, hidden_dim = [128]):
+    def __init__(self, num_inputs, num_outputs):
         super(CalibrationModel, self).__init__()
         self.linear = nn.Linear(num_inputs, num_outputs)
         self.apply(weights_init_)
