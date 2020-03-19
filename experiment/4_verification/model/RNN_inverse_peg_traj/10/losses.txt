@@ -1,0 +1,17 @@
+Validation Traj:[0.00142058 0.00163752 0.001487  ]
+MSE losses:[0.00142058 0.00163752 0.001487  ]
+Min: 0.001420
+Mean: 0.001515
+Std: 9.075778
+
+Smooth Unseen Traj 
+MSE losses:[0.08400969 0.0925651  0.0767785 ]
+Min: 0.076778
+Mean: 0.084451
+Std: 0.006452
+
+Random Unseen Traj 
+MSE losses:[0.10457526 0.09617113 0.11295755]
+Min: 0.096171
+Mean: 0.104567
+Std: 0.006853

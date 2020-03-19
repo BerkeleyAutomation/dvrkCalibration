@@ -70,8 +70,9 @@ class dvrkMotionBridgeM():
                 self.dvrk.set_jaw(jaw1=des_jaw1, jaw2=des_jaw2)
             elif method==1:
                 self.dvrk.set_joint(joint1=des_joint1, joint2=des_joint2)
+                self.dvrk.set_jaw(jaw1=des_jaw1, jaw2=des_jaw2)
             elif method==2:
-                self.dvrk.set_position(pos1=des_pos1, pos2=des_pos2)
+                self.dvrk.set_arm_position(pos1=des_pos1, pos2=des_pos2)
 
             # data sending
             data_send = struct.pack('?', True)

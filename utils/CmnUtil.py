@@ -49,7 +49,6 @@ def euler_to_quaternion(rot, unit='rad'):
     qx = cy * cp * sr - sy * sp * cr;
     qy = sy * cp * sr + cy * sp * cr;
     qz = sy * cp * cr - cy * sp * sr;
-
     return [qx, qy, qz, qw]
 
 
@@ -89,8 +88,16 @@ def R_to_euler(R):
         z = 0
     return np.array([x, y, z])
 
+def quaternion_to_R(qx,qy,qz,qw):
+    s=np.sqrt(qx*qx + qy*qy + qz*qz + qw*qw)
+    r11 = 1-2*s*(qy*qy+qz*qz); r12 = 2*s*(qx*qy-qz*qw);  r13 = 2*s*(qx*qz+qy*qw)
+    r21 = 2*s*(qx*qy+qz*qw);  r22 = 1-2*s*(qx*qx+qz*qz); r23 = 2*s*(qy*qz-qx*qw)
+    r31 = 2*s*(qx*qz-qy*qw);  r32 = 2*s*(qy*qz+qx*qw);  r33 = 1-2*s*(qx*qx+qy*qy)
+    R = [[r11, r12, r13], [r21, r22, r23], [r31, r32, r33]]
+    return R
 
 def R_to_quaternion(R):
+    raise NotImplementedError
     qw = np.sqrt((1. + R[0][0] + R[1][1] + R[2][2])/2.)
     qx = (R[2][1] - R[1][2]) / (4. * qw)
     qy = (R[0][2] - R[2][0]) / (4. * qw)

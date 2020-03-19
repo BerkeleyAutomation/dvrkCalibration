@@ -3,45 +3,46 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from FLSpegtransfer.vision.BallDetection import BallDetection
 plt.style.use('seaborn-whitegrid')
+# plt.style.use('bmh')
+plt.rc('font', size=12)          # controls default text sizes
+plt.rc('axes', titlesize=20)     # fontsize of the axes title
+plt.rc('axes', labelsize=13)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=11)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=11)    # fontsize of the tick labels
+plt.rc('legend', fontsize=17)    # legend fontsize
+plt.rc('figure', titlesize=10)  # fontsize of the figure title
 
-def index_outlier(trajectory):
-    index = []
-    for i,joints in enumerate(trajectory):
-        if joints[3]==joints[4]==joints[5]==0.0:
-            print ('faulted data: ', i)
-            index.append(i)
-    return index
 
 # Trajectory check
-file_path = 'peg_transfer/'
-q_des = np.load(file_path + 'joint_des.npy')    # desired joint angles: [q1, ..., q6]
-q_act = np.load(file_path + 'joint_act.npy')    # actual joint angles: [q1, ..., q6]
-pos_des = np.load(file_path + 'position_des.npy')  # desired position: [x,y,z]
-pos_act = np.load(file_path + 'position_act.npy')  # actual position: [x,y,z]
-quat_des = np.load(file_path + 'quaternion_des.npy')  # desired quaternion: [qx,qy,qz,qw]
-quat_act = np.load(file_path + 'quaternion_act.npy')  # desired quaternion: [qx,qy,qz,qw]
-t_stamp = np.load(file_path + 'time_stamp.npy')    # measured time (sec)
-print('data length: ',len(q_des))
+file_path = 'pick_place/'
+# file_path = 'random_sampled/'
+# file_path = 'random/filtered_downsampled/'
+q_des = np.load(file_path + 'q_des.npy')[:200]    # desired joint angles: [q1, ..., q6]
+q_act = np.load(file_path + 'q_act.npy')[:200]    # actual joint angles: [q1, ..., q6]
+pos_des = np.load(file_path + 'pos_des.npy')[:200]  # desired position: [x,y,z]
+pos_act = np.load(file_path + 'pos_act.npy')[:200]  # actual position: [x,y,z]
+quat_des = np.load(file_path + 'quat_des.npy')[:200]  # desired quaternion: [qx,qy,qz,qw]
+quat_act = np.load(file_path + 'quat_act.npy')[:200]  # desired quaternion: [qx,qy,qz,qw]
+t_stamp = np.load(file_path + 't_stamp.npy')[:200]    # measured time (sec)
+print('data length1: ',len(q_des))
 
 # plot position trajectory
-RMSE = np.sqrt(np.mean((pos_des - pos_act) ** 2))
-print("RMSE=", RMSE, '(mm)')
+RMSE = np.sqrt(np.sum((pos_des - pos_act) ** 2)/len(pos_des))
+print("RMSE=", RMSE, '(m)')
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-plt.plot(pos_des[:, 0], pos_des[:, 1], pos_des[:, 2], 'b--')
+plt.plot(pos_des[:, 0], pos_des[:, 1], pos_des[:, 2], 'b-')
 plt.plot(pos_act[:, 0], pos_act[:, 1], pos_act[:, 2], 'r-')
-ax.set_xlabel('x (mm)')
-ax.set_ylabel('y (mm)')
-ax.set_zlabel('z (mm)')
-plt.legend(['desired', 'actual'])
+ax.set_xlabel('x (m)')
+ax.set_ylabel('y (m)')
+ax.set_zlabel('z (m)')
+# plt.legend(['desired', 'actual'])
 plt.show()
-
-print (t_stamp)
 
 # plot joint angles
 RMSE = []
 for i in range(6):
-    RMSE.append(np.sqrt(np.mean((q_des[:,i] - q_act[:,i]) ** 2)))
+    RMSE.append(np.sqrt(np.sum((q_des[:,i] - q_act[:,i]) ** 2))/len(q_des[:,i]))
 print("RMSE=", RMSE)
 t = range(len(q_des))
 plt.title('joint angle')

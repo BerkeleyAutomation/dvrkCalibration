@@ -1,2 +1,2 @@
 #!/bin/bash
-rosbag record -b 0 -o subset /zivid_camera/color/image_color/compressed /zivid_camera/depth/image_raw
+rosbag record -b 0 -o subset /zivid_camera/color/image_color/compressed /zivid_camera/depth/image_raw /zivid_camera/points

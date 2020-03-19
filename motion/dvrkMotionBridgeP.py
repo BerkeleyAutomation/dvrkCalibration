@@ -105,12 +105,14 @@ class dvrkMotionBridgeP():
         self.des_jaw2 = jaw2
         return self.send_motion_data(0)
 
-    def set_joint(self, joint1=[], joint2=[]):
+    def set_joint(self, joint1=[], jaw1=[], joint2=[], jaw2=[]):
         self.des_joint1 = joint1
+        self.des_jaw1 = jaw1
         self.des_joint2 = joint2
+        self.des_jaw2 = jaw2
         return self.send_motion_data(1)
 
-    def set_position(self, pos1=[], pos2=[]):
+    def set_arm_position(self, pos1=[], pos2=[]):
         self.des_pos1=pos1
         self.des_pos2=pos2
         return self.send_motion_data(2)
@@ -128,34 +130,39 @@ class dvrkMotionBridgeP():
 
 if __name__ == "__main__":
     perception = dvrkMotionBridgeP()
-    pos1 = [0.0, 0.0, -0.13]
-    rot1 = [0.0, 0.0, 0.0]
+    pos1 = [0.1, 0.1, -0.13]
+    rot1 = [-0.3, -0.4, -0.3]
     q1 = U.euler_to_quaternion(rot1, unit='deg')
-    jaw1 = [0*np.pi/180.]
+    jaw1 = [5*np.pi/180.]
+    # perception.set_pose(pos1=pos1, rot1=q1, jaw1=jaw1)
+    perception.set_pose(jaw1=jaw1)
+
     pos2 = [0.0, 0.0, -0.13]
     rot2 = [0.0, 0.0, 0.0]
     q2 = U.euler_to_quaternion(rot2, unit='deg')
     jaw2 = [0.0*np.pi/180.]
-    perception.set_pose(jaw1=jaw1)
-    joint1 = [0.0, 0.0, 0.13, 0.0, 0.0, 0.0]
-    joint2 = [0.0, 0.0, 0.13, 0.0, 0.0, 0.0]
-    t = 0.0
+    # perception.set_pose(jaw1=jaw1)
+    # joint1 = [0.8, .7, 0.12, 0.0, -0.5, 0.0]
+    # joint2 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # perception.set_joint(joint1=joint1)
+    # t = 0.0
     # import time
     # while True:
-    #     # print(perception.act_joint1)
+    #     print(perception.act_joint1)
     #     t += 0.005
-    #     # pos1[0] = 0.1*np.sin(2*3.14*t)
-    #     # pos2[0] = 0.1*np.sin(2*3.14*t)
-    #     # jaw1[0] = 0.6*np.sin(2*3.14*2*t) + 0.6
-    #     # jaw2[0] = 0.6*np.sin(2*3.14*2*t) + 0.6
-    #     # perception.set_pose(pos1=pos1, rot1=q1, jaw1=jaw1, pos2=pos2, rot2=q2, jaw2=jaw2)
+    #     pos1[0] = 0.1*np.sin(2*3.14*t)
+    #     pos2[0] = 0.1*np.sin(2*3.14*t)
+    #     jaw1[0] = 0.6*np.sin(2*3.14*2*t) + 0.6
+    #     jaw2[0] = 0.6*np.sin(2*3.14*2*t) + 0.6
+    #     perception.set_arm_position(pos1=pos1, pos2=pos2)
+    #     perception.set_pose(pos1=pos1, rot1=q1, jaw1=jaw1, pos2=pos2, rot2=q2, jaw2=jaw2)
     #     # perception.set_position(pos1=pos1, pos2=pos2)
-    #     joint1[0] = 1.13 + 0.1*np.sin(2*3.14*t)
-    #     joint1[1] = -0.10 + 0.1*np.sin(2*3.14*t)
-    #     joint1[2] = 0.16 + 0.003*np.sin(2*3.14*t)
-    #     joint1[3] = 1.3 + 0.9*np.sin(2*3.14*t)
-    #     joint1[4] = -0.5434 + 0.5*np.sin(3*3.14*t)
-    #     joint1[5] = 0.4066 + 0.3*np.sin(3*3.14*t)
-    #     perception.set_joint(joint1)
-    #     time.sleep(0.005)
-    #
+    #     # joint1[0] = 1.13 + 0.1*np.sin(2*3.14*t)
+    #     # joint1[1] = -0.10 + 0.1*np.sin(2*3.14*t)
+    #     # joint1[2] = 0.16 + 0.003*np.sin(2*3.14*t)
+    #     # joint1[3] = 1.3 + 0.9*np.sin(2*3.14*t)
+    #     # joint1[4] = -0.5434 + 0.5*np.sin(3*3.14*t)
+    #     # joint1[5] = 0.4066 + 0.3*np.sin(3*3.14*t)
+    #     # perception.set_joint(joint1)
+    #     # time.sleep(0.005)
+

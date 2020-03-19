@@ -115,7 +115,7 @@ class dvrkDualArm(object):
             self.arm2._dvrkArm__set_position_goal_joint_pub.publish(msg2)
             return True
 
-    def set_position(self, pos1=[], pos2=[], wait_callback=True):
+    def set_arm_position(self, pos1=[], pos2=[], wait_callback=True):
         msg1 = JointState()
         msg2 = JointState()
         if pos1==[]:

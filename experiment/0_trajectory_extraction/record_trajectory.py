@@ -7,7 +7,7 @@ joint1_record = []
 try:
     time_curr = 0.0
     time_st = time.time()
-    while time_curr < 190:
+    while time_curr < 30:
         time_curr = time.time() - time_st
         joint1 = p1.get_current_joint(wait_callback=True)
         time.sleep(0.1)

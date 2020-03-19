@@ -16,23 +16,31 @@ plt.rc('figure', titlesize=10)  # fontsize of the figure title
 
 # Trajectory check
 BD = BallDetection()
-file_path = root+'experiment/0_trajectory_extraction/raw/'
-arm_traj = np.load(file_path+'training_traj_random_arm_raw.npy')
-wrist_traj = np.load(file_path+'training_traj_random_wrist_raw.npy')
-arm_traj[:, 2] -= 0.010
-arm_traj = arm_traj[6255-5618:]
+file_path = root+'experiment/0_trajectory_extraction/'
+arm_traj = np.load(file_path+'ready_movement.npy')
+wrist_traj = np.load(file_path+'ready_movement.npy')
+# arm_traj[:, 2] -= 0.010
+# arm_traj = arm_traj[6255-5618:]
 # wrist_traj = wrist_traj[1:]
-print(arm_traj.shape, wrist_traj.shape)
+# print(arm_traj.shape, wrist_traj.shape)
 
-# fc = 10
-# dt = 0.001
-# arm_traj = U.LPF(arm_traj, fc, dt)
-# wrist_traj = U.LPF(wrist_traj, fc, dt)
-# arm_traj = arm_traj[::3]    # down sampling by 3 for peg transfer and by 2 for random trajectory
-# wrist_traj = wrist_traj[::3]
+fc = 5
+dt = 0.01
+arm_traj = U.LPF(arm_traj, fc, dt)
+wrist_traj = U.LPF(wrist_traj, fc, dt)
+arm_traj = arm_traj[::3]    # down sampling by 3 for peg transfer and by 2 for random trajectory
+wrist_traj = wrist_traj[::3]
 print('data length: ',len(arm_traj), len(wrist_traj))
 pos = np.array(
     [BD.fk_position(q[0], q[1], q[2], 0, 0, 0, L1=BD.L1, L2=BD.L2, L3=0, L4=0) for q in arm_traj])
+
+print("min_x=", min(pos[:,0]))
+print("max_x=", max(pos[:,0]))
+print("min_y=", min(pos[:,1]))
+print("max_y=", max(pos[:,1]))
+print("min_z=", min(pos[:,2]))
+print("max_z=", max(pos[:,2]))
+
 q1 = arm_traj[:, 0]
 q2 = arm_traj[:, 1]
 q3 = arm_traj[:, 2]

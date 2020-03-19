@@ -55,12 +55,27 @@ def fk_orientation(j1, j2, j3, j4, j5, j6):
     R = np.array([[r11, r12, r13], [r21, r22, r23], [r31, r32, r33]])
     return R
 
+def index_outlier(trajectory):
+    index = []
+    for i,joints in enumerate(trajectory):
+        if joints[3]==joints[4]==joints[5]==0.0:
+            print ('faulted data: ', i)
+            index.append(i)
+    return index
 
-file_path = 'peg_transfer/raw/'
+# file_path = 'pick_place/2/'
+file_path = 'random_sampled/'
 q_des = np.load(file_path + 'q_des_raw.npy')    # desired joint angles: [q1, ..., q6]
 q_act = np.load(file_path + 'q_act_raw.npy')    # actual joint angles: [q1, ..., q6]
-t_stamp = np.load(file_path + 'time_stamp_raw.npy')    # measured time (sec)
+# t_stamp = np.load(file_path + 't_stamp_raw.npy')    # measured time (sec)
 print('data length: ', len(q_des))
+
+# find and delete the outlier
+index = index_outlier(q_act)
+print ("number of outlier: ", index)
+q_des = np.delete(q_des, index, axis=0)
+q_act = np.delete(q_act, index, axis=0)
+# t_stamp = np.delete(t_stamp, index, axis=0)
 
 L1 = 0.4318  # Rcc (m)
 L2 = 0.4162  # tool
@@ -82,6 +97,9 @@ for q in q_act:
     R_matrix = PyKDL.Rotation(R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2])
     quat_des.append(list(R_matrix.GetQuaternion()))
 
+np.save('q_des', q_des)
+np.save('q_act', q_act)
+# np.save('t_stamp', t_stamp)
 np.save('pos_des', pos_des)
 np.save('pos_act', pos_act)
 np.save('quat_des', quat_des)

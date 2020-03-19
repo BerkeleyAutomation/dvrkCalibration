@@ -15,7 +15,8 @@ class BallDetection():
         self.__img_point = []
 
         # thresholding value
-        self.__masking_depth = [300, 950]
+        # self.__masking_depth = [300, 850]
+        self.__masking_depth = [300, 1000]
         self.__lower_red = np.array([0-20, 130, 40])
         self.__upper_red = np.array([0+20, 255, 255])
         self.__lower_green = np.array([60-20, 130, 40])
@@ -381,8 +382,8 @@ class BallDetection():
         # R.dot(R_yaw_tooltip)
         return R
 
-    def ik_position(self, pos): # (m)
-        x = pos[0]
+    def ik_position(self, pos):
+        x = pos[0]      # (m)
         y = pos[1]
         z = pos[2]
 

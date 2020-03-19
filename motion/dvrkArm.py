@@ -243,7 +243,7 @@ class dvrkArm(object):
         j3 = np.sqrt(x ** 2 + y ** 2 + z ** 2) + L1 - L2 - L3 - L4
         return j1, j2, j3
 
-    def set_position(self, pos):
+    def set_arm_position(self, pos):
         j1, j2, j3 = self.inverse_kin_arm(pos)
         self.set_joint([j1, j2, j3, 0.0, 0.0, 0.0], True)
 
