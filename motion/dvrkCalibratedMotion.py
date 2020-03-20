@@ -42,7 +42,7 @@ class CalibratedMotion():
       self.use_linear = False
 
       if self.use_linear:
-          from FLSpegtransfer.motion.dvrkLinearModel import LinearModel
+          from FLSpegtransfer.motion.LinearModel import LinearModel
           self.linear_model = LinearModel(4)
 
       # self.horizon = 4

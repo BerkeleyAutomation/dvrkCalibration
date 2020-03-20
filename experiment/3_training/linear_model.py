@@ -212,7 +212,7 @@ def plot_trajectories(y, yPred, includeError=False):
     # plt.title('joint angle error')
     print("MSE:", mean_squared_error(y[:, 3:], yPred[:, 3:]))
     fig, axs = plt.subplots(6, sharex=True)
-    fig.suptitle("dvrkLinearModel.py")
+    fig.suptitle("LinearModel.py")
     t = range(len(y))
     for j in range(6):
         # jAct = q_act[:,j]

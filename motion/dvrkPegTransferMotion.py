@@ -1,7 +1,7 @@
 from FLSpegtransfer.motion.dvrkMotionBridgeP import dvrkMotionBridgeP
 import FLSpegtransfer.utils.CmnUtil as U
 from FLSpegtransfer.motion.dvrkKinematics import dvrkKinematics
-from FLSpegtransfer.motion.dvrkCalibratedMotion import CalibratedMovement
+from FLSpegtransfer.motion.NNModel import CalibratedMovement
 import numpy as np
 import time
 
