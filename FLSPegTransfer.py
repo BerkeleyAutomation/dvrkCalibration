@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import time
 
-from FLSpegtransfer.vision.ZividCapture import ZividCapture
+# from FLSpegtransfer.vision.ZividCapture import ZividCapture
 from FLSpegtransfer.vision.BlockDetection import BlockDetection
 from FLSpegtransfer.motion.dvrkPegTransferMotion import dvrkPegTransferMotion
 
@@ -15,7 +15,7 @@ class FLSPegTransfer():
         # import modules
         self.BD = BlockDetection()
         self.dvrk_motion = dvrkPegTransferMotion()
-        self.zivid = ZividCapture()
+        # self.zivid = ZividCapture()
 
         # load transform
         self.Trc = np.load('calibration_files/Trc.npy')
@@ -75,12 +75,12 @@ class FLSPegTransfer():
                 time.sleep(0.3)
 
                 # capture
-                # image = np.load('record/image.npy')
-                # depth = np.load('record/depth.npy')
-                # point = np.load('record/point.npy')
-                # img_color, self.img_depth, self.img_point = self.BD.img_crop(image, depth, point)
-                self.zivid.capture_3Dimage()
-                img_color, self.img_depth, self.img_point = self.BD.img_crop(self.zivid.image, self.zivid.depth, self.zivid.point)
+                image = np.load('record/image.npy')
+                depth = np.load('record/depth.npy')
+                point = np.load('record/point.npy')
+                img_color, self.img_depth, self.img_point = self.BD.img_crop(image, depth, point)
+                # self.zivid.capture_3Dimage()
+                # img_color, self.img_depth, self.img_point = self.BD.img_crop(self.zivid.image, self.zivid.depth, self.zivid.point)
                 self.img_color = cv2.cvtColor(img_color, cv2.COLOR_RGB2BGR)
 
                 # scanning
