@@ -10,7 +10,7 @@ If you find paper and/or code helpful, please consider citing the corresponding 
 ```
 @inproceedings{minho_calibration_2020,
     author = {Minho Hwang and Brijen Thananjeyan and Samuel Paradis and Daniel Seita and Jeffrey Ichnowski and Danyal Fer and Thomas Low and Ken Goldberg},
-    title = {{Efficiently Calibrating Cable-Driven Surgical Robots With RGBD Sensing, Temporal Windowing, and Linear and Recurrent Neural Network Compensation}},
+    title = {{Efficiently Calibrating Cable-Driven Surgical Robots with RGBD Fiducial Sensing and Recurrent Neural Networks}},
     booktitle = {IEEE Robotics and Automation Letters (RA-L)},
     Year = {2020}
 }
