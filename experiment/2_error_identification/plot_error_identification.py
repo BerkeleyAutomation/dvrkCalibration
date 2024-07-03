@@ -218,18 +218,18 @@ def save_outlier(trajectory, n_data):
 
 # (exp.1) randomly move all joints
 file_path = 'exp1/'
-q_act1 = np.load(file_path+'q_act_raw.npy')
-q_des1 = np.load(file_path+'q_des_raw.npy')
+q_act1 = np.load('/home/davinci/dvrkCalibration/data/psm1_q_act_raw_800.npy')
+q_des1 = np.load('/home/davinci/dvrkCalibration/data/psm1_q_des_raw_800.npy')
 q_act1 = save_outlier(q_act1, 6)
 
 # (exp.2) randomly move q4,q5,q6 with q1,q2,q3 fixed
 file_path = 'exp2/'
-q_act2 = np.load(file_path + 'q_act_raw.npy')
-q_des2 = np.load(file_path + 'q_des_raw.npy')
+q_act2 = np.load('/home/davinci/dvrkCalibration/data/psm1_q_act_raw_800.npy')
+q_des2 = np.load('/home/davinci/dvrkCalibration/data/psm1_q_des_raw_800.npy')
 q_act2[:,0] = 0.0; q_act2[:,1]=0.0; q_act2[:,2]=0.0
 q_des2[:,0] = 0.0; q_des2[:,1]=0.0; q_des2[:,2]=0.0
-plot_joint_compare(q_des1, q_act1, q_des2, q_act2)
-
+plot_joint_compare(q_des1[100,:], q_act1[100,:], q_des2[100,:], q_act2[100,:])
+exit()
 
 # (exp.3) move q4 only
 file_path = 'exp3/'

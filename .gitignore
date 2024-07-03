@@ -15,3 +15,9 @@ venv*
 
 # don't push logs for model training
 log/*
+*.npy
+*.png
+lab_meeting/*
+debugging/*
+data/*
+experiment/3_training/modeling/log/*

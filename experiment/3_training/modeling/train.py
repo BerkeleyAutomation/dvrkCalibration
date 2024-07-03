@@ -11,25 +11,29 @@ import torch
 from torch.optim import Adam
 import torch.nn.functional as F
 
-from .dataset import Dataset
-from .models import CalibrationModel, CalibrationLSTM
+import sys
+sys.path.append('/home/davinci/dvrkCalibration/experiment/3_training/modeling')
+from dataset import Dataset
+from models import CalibrationModel, CalibrationLSTM
 
 
 def load_data(data_dir):
-	joint_actual = np.load(osp.join(data_dir, "joint_act.npy"))
-	joint_desired = np.load(osp.join(data_dir, "joint_des.npy"))
-	position_actual = np.load(osp.join(data_dir, "position_act.npy"))
-	position_desired = np.load(osp.join(data_dir, "position_des.npy"))
-	quaternion_actual = np.load(osp.join(data_dir, "quaternion_act.npy"))
-	quaternion_desired = np.load(osp.join(data_dir, "quaternion_des.npy"))
+	#joint_actual = np.load(osp.join(data_dir, "psm1_q_act_raw_800.npy"))
+	#joint_desired = np.load(osp.join(data_dir, "psm1_q_des_raw_800.npy"))
+	joint_actual = np.load(osp.join(data_dir, "psm2_q_act_raw_801.npy"))
+	joint_desired = np.load(osp.join(data_dir, "psm2_q_des_raw_801.npy"))
+	#position_actual = np.load(osp.join(data_dir, "position_act.npy"))
+	#position_desired = np.load(osp.join(data_dir, "position_des.npy"))
+	#quaternion_actual = np.load(osp.join(data_dir, "quaternion_act.npy"))
+	#quaternion_desired = np.load(osp.join(data_dir, "quaternion_des.npy"))
 
 	return {
 		"joint_actual": joint_actual,
-		"position_actual": position_actual,
-		"quaternion_actual": quaternion_actual,
+		#"position_actual": position_actual,
+		#"quaternion_actual": quaternion_actual,
 		"joint_desired": joint_desired,
-		"position_desired": position_desired,
-		"quaternion_desired": quaternion_desired
+		#"position_desired": position_desired,
+		#"quaternion_desired": quaternion_desired
 	}
 
 
@@ -41,6 +45,7 @@ def format_data(H, fname, use_actual_inputs=False, rnn=False):
 	desired = data["joint_desired"][:,3:]
 	actual = data["joint_actual"][:,3:]
 	histories = []
+	
 	for i in range(H):
 		if use_actual_inputs:
 			histories.append(actual[i:len(desired) - H + i])
@@ -52,9 +57,11 @@ def format_data(H, fname, use_actual_inputs=False, rnn=False):
 		histories = np.stack(histories, axis=1)
 	else:
 		histories = np.hstack(histories)
+	
 	return histories, cmds, phys
 
 def compute_standard_loss(model, batch_histories, batch_cmds, batch_phys, is_forward, is_rnn, device):
+	
 	if is_forward:
 		if is_rnn:
 			batch_inputs = np.hstack((batch_histories, batch_cmds[:,np.newaxis,:]))
@@ -71,7 +78,6 @@ def compute_standard_loss(model, batch_histories, batch_cmds, batch_phys, is_for
 			batch_outputs = batch_cmds
 	batch_inputs = torch.FloatTensor(batch_inputs).to(device)
 	batch_outputs = torch.FloatTensor(batch_outputs).to(device)
-
 	preds = model(batch_inputs)
 	return F.mse_loss(preds, batch_outputs)
 
@@ -207,14 +213,17 @@ class Experiment:
 						untorchify(inv_loss_val), untorchify(consistency_loss), untorchify(consistency_loss_val)))
 			if i % self.save_freq == 0:
 				self.save("model_iter%d.out"%i)
-
 		# Save final model
-		self.save("model.out")
+		self.save("model")
 		# Save plots
 		self.plot(save=True, show=False)
 
 	def save(self, fname):
-		torch.save(self.forward_model.state_dict(), osp.join(self.save_dir, fname))
+		forward_name = fname + '_forward.out'
+		inverse_name = fname + '_inverse.out'
+		torch.save(self.forward_model.state_dict(), osp.join(self.save_dir, forward_name))
+		torch.save(self.inverse_model.state_dict(), osp.join(self.save_dir, inverse_name))
+		print("Saved in " + str(self.save_dir))
 
 	def plot(self, save=False, show=True):
 		plt.clf()
@@ -229,7 +238,6 @@ class Experiment:
 		plt.title("Forward Model Loss Curve")
 		plt.xlabel("Iteration")
 		plt.ylabel("MSE Loss")
-		plt.ylim(0, 0.05)
 		if save:
 			plt.savefig(osp.join(self.save_dir, "forward_losses.png"))
 		if show:
@@ -243,7 +251,6 @@ class Experiment:
 		plt.title("Inverse Model Loss Curve")
 		plt.xlabel("Iteration")
 		plt.ylabel("MSE Loss")
-		plt.ylim(0, 0.05)
 		if save:
 			plt.savefig(osp.join(self.save_dir, "inverse_losses.png"))
 		if show:
@@ -256,7 +263,6 @@ class Experiment:
 		plt.title("Consistency Loss Curve")
 		plt.xlabel("Iteration")
 		plt.ylabel("MSE Loss")
-		plt.ylim(0, 0.05)
 		if save:
 			plt.savefig(osp.join(self.save_dir, "consistency_losses.png"))
 		if show:
@@ -269,19 +275,19 @@ def create_config():
 	"""
 	config = DotMap()
 	config.peg_data = "training_dataset_brijen/peg_transfer"
-	config.random_data = "training_dataset_brijen/random"
+	config.random_data = "/home/davinci/dvrkCalibration/data"
 	config.training_data = config.random_data # which dataset to train on
 	config.actual_inputs = False # whether to use actual as input
-	config.history = 10
+	config.history = 4
 	config.batch_size = 100
-	config.training_iterations = 5000
+	config.training_iterations = 1000
 	config.lr = 1e-3
 	config.device = "cpu" # switch to cuda if desired
 	config.save_dir = "log" # where to save logs and models
 	config.save_freq = 10 # how often to save model
 	config.log_freq = 10 # how often to print progress
 	config.validation_prob = 0.1
-	config.rnn = False
+	config.rnn = True
 	config.consistency_weight = 1. # set to 0 to not use cyclic consistency loss
 	return config
 

@@ -4,11 +4,14 @@ for p in sys.path:
         sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import numpy as np
 import cv2
-import FLSpegtransfer.utils.CmnUtil as U
-root = '/home/hwangmh/pycharmprojects/FLSpegtransfer/'
+import open3d as o3d
+root = '/home/davinci/dvrkCalibration'
+sys.path.append(root)
+import utils.CmnUtil as U
+from matplotlib import pyplot as plt
 
 class BallDetection():
-    def __init__(self):
+    def __init__(self,robot_to_cam_tf):
         # data members
         self.__img_color = []
         self.__img_depth = []
@@ -36,7 +39,7 @@ class BallDetection():
         self.L4 = 0.0102  # yaw ~ tip (m)
 
         # Transform from camera to robot
-        self.Trc = np.load(root+'experiment/1_rigid_transformation/Trc.npy')
+        self.Trc = robot_to_cam_tf
         self.Rrc = self.Trc[:3, :3]
         self.trc = self.Trc[:3, 3]
 
@@ -77,24 +80,29 @@ class BallDetection():
         Zc = depth
         return Xc, Yc, Zc
 
-    def world2pixel(self, Xc, Yc, Zc, Rc=0):
-        x = self.__fx * Xc / Zc + self.__cx - self.__xcr
-        y = self.__fy * Yc / Zc + self.__cy - self.__ycr
-        r = (self.__fx+self.__fy)/2 * Rc / Zc
+    def world2pixel(self, Xc, Yc, Zc,intrinsics_matrix,distortion_coefficients, Rc=0):
+        fx = intrinsics_matrix[0,0]
+        cx = intrinsics_matrix[0,2]
+        fy = intrinsics_matrix[1,1]
+        cy = intrinsics_matrix[1,2]
+        x = fx * Xc / Zc + cx #- self.__xcr
+        y = fy * Yc / Zc + cy #- self.__ycr
+        r = (fx+fy)/2 * Rc / Zc
         return int(x), int(y), int(r)
 
-    def overlay_balls(self, img_color, pbs):
+    def overlay_balls(self, img_color, pbs,intrinsics_matrix,distortion_coefficients):
         overlayed = img_color.copy()
         for pb in pbs:
             if pb==[]:
                 pass
             else:
-                pb_img = self.world2pixel(pb[0], pb[1], pb[2], pb[3])
+                pb_img = self.world2pixel(pb[0], pb[1], pb[2], intrinsics_matrix,distortion_coefficients,pb[3])
                 cv2.circle(overlayed, (pb_img[0], pb_img[1]), pb_img[2], (0, 255, 255), 2)
                 cv2.circle(overlayed, (pb_img[0], pb_img[1]), 3, (0, 255, 255), -1)
+                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/overlayed.png',overlayed)
         return overlayed
 
-    def overlay_tool(self, img_color, joint_angles, color):
+    def overlay_tool(self, img_color, joint_angles, color,intrinsics_matrix,distortion_coefficients):
         q1,q2,q3,q4,q5,q6 = joint_angles
         # 3D points w.r.t camera frame
         pb = self.Rrc.T.dot(np.array([0,0,0])-self.trc)*1000    # base position
@@ -105,10 +113,10 @@ class BallDetection():
         p7 = self.fk_position(q1,q2,q3,q4,q5,q6,L1=self.L1,L2=self.L2,L3=self.L3,L4=self.L4+0.005)
         p7 = self.Rrc.T.dot(np.array(p7)-self.trc)*1000  # tip
 
-        pb_img = self.world2pixel(pb[0], pb[1], pb[2])
-        p5_img = self.world2pixel(p5[0], p5[1], p5[2])
-        p6_img = self.world2pixel(p6[0], p6[1], p6[2])
-        p7_img = self.world2pixel(p7[0], p7[1], p7[2])
+        pb_img = self.world2pixel(pb[0], pb[1], pb[2],intrinsics_matrix,distortion_coefficients)
+        p5_img = self.world2pixel(p5[0], p5[1], p5[2],intrinsics_matrix,distortion_coefficients)
+        p6_img = self.world2pixel(p6[0], p6[1], p6[2],intrinsics_matrix,distortion_coefficients)
+        p7_img = self.world2pixel(p7[0], p7[1], p7[2],intrinsics_matrix,distortion_coefficients)
 
         overlayed = img_color.copy()
         self.drawline(overlayed, pb_img[0:2], p5_img[0:2], (0,255,0), 1, style='dotted', gap=8)
@@ -174,11 +182,51 @@ class BallDetection():
             masked = cv2.inRange(hsv, self.__lower_yellow, self.__upper_yellow)
         return masked
 
+    def plot_sphere(self,center, radius,points_ball):
+        # Center coordinates
+        x0, y0, z0 = center
+        
+        # Generate points on a sphere using spherical coordinates
+        phi = np.linspace(0, np.pi, 50)   # Azimuthal angle
+        theta = np.linspace(0, 2*np.pi, 50)   # Polar angle
+        
+        # Cartesian coordinates of the points on the sphere
+        x = radius * np.outer(np.sin(theta), np.cos(phi)) + x0
+        y = radius * np.outer(np.sin(theta), np.sin(phi)) + y0
+        z = radius * np.outer(np.cos(theta), np.ones_like(phi)) + z0
+        
+        # Plotting
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_surface(x, y, z, color='r', alpha=0.1)  # Plot the surface of the sphere
+
+         # Plot points
+        ax.scatter(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2], c='b', marker='o')
+        
+        # Adjust plot limits to include the sphere
+        ax.set_xlim([x0 - radius, x0 + radius])
+        ax.set_ylim([y0 - radius, y0 + radius])
+        ax.set_zlim([z0 - radius, z0 + radius])
+        
+        # Set labels and title
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title(f'Sphere with center ({x0}, {y0}, {z0}) and radius {radius}')
+        
+        # Show plot
+        plt.show()
+
     def find_balls(self, img_color, img_depth, img_point):
+
         red_masked = self.mask_image(img_color, img_depth, img_point, 'red')
+        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_red.png',red_masked)
         green_masked = self.mask_image(img_color, img_depth, img_point, 'green')
+        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_green.png',green_masked)
         blue_masked = self.mask_image(img_color, img_depth, img_point, 'blue')
+        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_blue.png',blue_masked)
         yellow_masked = self.mask_image(img_color, img_depth, img_point, 'yellow')
+        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_yellow.png',yellow_masked)
 
         # cv2.imshow("red", red_masked)
         # cv2.imshow("green", green_masked)
@@ -189,6 +237,7 @@ class BallDetection():
         masked_img = [lambda:red_masked, lambda:red_masked, lambda:red_masked, lambda:green_masked, lambda:blue_masked, lambda:yellow_masked]
         radius = [12.0, 10.0, 8.0, 8.0, 8.0, 8.0]    # (mm)
         pb = []
+        print("Nunber of masked images: " + str(len(masked_img)))
         for i in range(len(masked_img)):
             # Find contours in the mask and initialize the current (x, y) center of the ball
             cnts, _ = cv2.findContours(masked_img[i](), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -200,14 +249,18 @@ class BallDetection():
                 # Get the pixel coordinates inside the contour
                 infilled = np.zeros(np.shape(img_color), np.uint8)
                 cv2.drawContours(infilled, [cnts[0]], 0, (255, 255, 255), -1)
+                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/biggestContour.png',infilled)
                 infilled = cv2.cvtColor(infilled, cv2.COLOR_BGR2GRAY)
                 infilled_inv = cv2.bitwise_not(infilled)
+                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/infilled_inv.png',infilled_inv)
                 ball_masked = cv2.bitwise_and(masked_img[i](), masked_img[i](), mask=infilled)
+                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/ball_masked.png',ball_masked)
 
                 # Get the point clouds
                 args = np.argwhere(ball_masked == 255)
                 points_ball = np.array([img_point[p[0], p[1]] for p in args])
-
+                
+                
                 # Saving images
                 # black = np.zeros_like(img_color)
                 # for p in args:
@@ -218,6 +271,7 @@ class BallDetection():
 
                 # Linear regression to fit the circle into the point cloud
                 xc, yc, zc, rc = self.fit_circle_3d(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2])
+                #self.plot_sphere(np.array([xc,yc,zc]),rc,points_ball)
                 if radius[i]-2 < rc < radius[i]+2:
                     pb.append([xc, yc, zc, rc])
                 else:

@@ -2,7 +2,10 @@ import socket
 import struct
 import numpy as np
 import threading
-import FLSpegtransfer.utils.CmnUtil as U
+import sys
+root = '/home/davinci/dvrkCalibration'
+sys.path.append(root)
+import utils.CmnUtil as U
 
 class dvrkMotionBridgeP():
     def __init__(self):

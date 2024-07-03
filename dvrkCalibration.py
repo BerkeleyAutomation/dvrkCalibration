@@ -7,24 +7,40 @@ import cv2
 import time
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
-from FLSpegtransfer.vision.ZividCapture import ZividCapture
-from FLSpegtransfer.vision.BallDetection import BallDetection
-from FLSpegtransfer.motion.dvrkMotionBridgeP import dvrkMotionBridgeP
-import FLSpegtransfer.utils.CmnUtil as U
-root = '/home/hwangmh/pycharmprojects/FLSpegtransfer/'
-
+from vision_new.cameras.Camera import Camera
+from vision_new import vision_constants as cst
+from vision.ZividCaptureNew import ZividCapture
+from vision.BallDetection import BallDetection
+from motion.dvrkMotionBridgeP import dvrkMotionBridgeP
+from motion.dvrkArmNew import dvrkArm
+import utils.CmnUtil as U
+root = '/home/davinci/dvrkCalibration'
+JAW_OPEN_ANGLE = [np.pi / 2]
+JAW_CLOSE_ANGLE = [-0.3]  # Angle for closing jaw to grasp
 class dvrkCalibration():
     def __init__(self):
+        psm_number = input("Which PSM are you calibrating. Pick 1 or 2 ")
+        psm_string = ''
+        data_path = '/home/davinci/dvrkCalibration/data/'
+        self.robot_to_cam_ = None
+        if(psm_number == '1'):
+            psm_string='/PSM1'
+            self.robot_to_cam_ = np.load('/home/davinci/automated_suturing/surgical_suturing_catkin_ws/src/calibration_config/cam_to_robot/Trc_inclined_PSM1.npy')
+        elif(psm_number == '2'):
+            psm_string = '/PSM2'
+            self.robot_to_cam_ = np.load('/home/davinci/automated_suturing/surgical_suturing_catkin_ws/src/calibration_config/cam_to_robot/Trc_inclined_PSM2.npy')
+        else:
+            print("Please select 1 or 2")
+            exit()
+
         # objects
-        self.dvrk = dvrkMotionBridgeP()
-        self.zivid = ZividCapture()
-        self.BD = BallDetection()
+        self.dvrk = dvrkArm(psm_string)
+        self.zivid = Camera(cst.ZIVID,zivid_capture_type='3d')
+        self.BD = BallDetection(self.robot_to_cam_)
 
         # Load trajectory
-        filename_transform = root + 'experiment/0_trajectory_extraction/short_traj_random.npy'
-        self.joint_traj_tranform = self.load_trajectory(filename_transform)
         # filename = root + 'experiment/0_trajectory_extraction/verification_traj_random_sampling_10000.npy'
-        filename = root + 'experiment/0_trajectory_extraction/verification_traj_insertion_50_.npy'
+        filename = data_path + 'prime_psm' + psm_number + '_random_sampled.npy'
         self.joint_traj = self.load_trajectory(filename)
 
     def load_trajectory(self, filename):
@@ -83,7 +99,7 @@ class dvrkCalibration():
 
     def exp1_move_all_joints(self):
         jaw1 = [5. * np.pi / 180.]
-        self.dvrk.set_pose(jaw1=jaw1)
+        self.dvrk.set_jaw(jaw=jaw1)
         j1 = self.joint_traj[:, 0]
         j2 = self.joint_traj[:, 1]
         j3 = self.joint_traj[:, 2]
@@ -137,6 +153,7 @@ class dvrkCalibration():
         self.collect_data_joint(j1, j2, j3, j4, j5, j6, transform='known')
 
     def collect_data_joint(self, j1, j2, j3, j4, j5, j6, transform='known'):    # j1, ..., j6: joint trajectory
+        
         try:
             time_st = time.time()   # (sec)
             time_stamp = []
@@ -145,20 +162,43 @@ class dvrkCalibration():
             pos_des = []
             pos_act = []
             assert len(j1)==len(j2)==len(j3)==len(j4)==len(j5)==len(j6)
+            i = 1
             for qd1,qd2,qd3,qd4,qd5,qd6 in zip(j1,j2,j3,j4,j5,j6):
+                # if(i <= 750):
+                #     print(i)
+                #     i+= 1
+                #     continue
+                if(i % 801 == 0):
+                    print("Resetting gripper hold on plus sign")
+                    self.dvrk.set_jaw(JAW_OPEN_ANGLE)
+                    if transform == 'known':
+                        np.save('q_des_raw_'+str(i), q_des)
+                        np.save('q_act_raw_'+str(i), q_act)
+                    elif transform == 'unknown':
+                        # Get transform from robot to camera
+                        np.save('pos_des_'+str(i), pos_des)
+                        np.save('pos_act_', pos_act)
+                        T = U.get_rigid_transform(np.array(pos_act), np.array(pos_des))
+                        np.save('Trc_'+str(i), T)
+                    np.save('t_stamp_raw_'+str(i), time_stamp)
+                    print("Data is successfully saved for trajectories 0 to " + str(i))
+                    user_input = input("Regrip fiducial markers")
+                    self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
                 joint1 = [qd1, qd2, qd3, qd4, qd5, qd6]
-                self.dvrk.set_joint(joint1=joint1)
-
+                self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
+                self.dvrk.set_joint(joint=joint1)
+                self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
+                
                 # Capture image from Zivid
-                self.zivid.capture_3Dimage()
-                img_color, img_depth, img_point = self.BD.img_crop(self.zivid.image, self.zivid.depth, self.zivid.point)
-                img_color = cv2.cvtColor(img_color, cv2.COLOR_RGB2BGR)
+                zivid_image,zivid_depth,zivid_pcl,intrinsics_matrix,distortion_coefficients = self.zivid.capture()
+                img_color, img_depth, img_point = zivid_image,zivid_depth,zivid_pcl # self.BD.img_crop(zivid_image,zivid_depth,zivid_pcl)
+                #img_color = cv2.cvtColor(img_color, cv2.COLOR_RGB2BGR)
                 img_color_org = np.copy(img_color)
-
+                cv2.imwrite('/home/davinci/dvrkCalibration/lab_meeting/zivid_frame/img_color_' + str(i) + '.png',img_color_org)
                 # Find balls
                 pbs = self.BD.find_balls(img_color_org, img_depth, img_point)
-                img_color = self.BD.overlay_balls(img_color, pbs)
-
+                img_color = self.BD.overlay_balls(img_color, pbs,intrinsics_matrix,distortion_coefficients)
+                
                 # Find tool position, joint angles, and overlay
                 if pbs[0] == [] or pbs[1] == []:
                     qa1=0.0; qa2=0.0; qa3=0.0; qa4=0.0; qa5=0.0; qa6=0.0
@@ -166,6 +206,7 @@ class dvrkCalibration():
                     # Find tool position, joint angles, and overlay
                     pt = self.BD.find_tool_position(pbs[0], pbs[1])  # tool position of pitch axis
                     pt = np.array(pt) * 0.001  # (m)
+                    
                     if transform == 'known':
                         pt = self.BD.Rrc.dot(pt) + self.BD.trc
                         qa1, qa2, qa3 = self.BD.ik_position(pt)
@@ -177,8 +218,8 @@ class dvrkCalibration():
                         else:
                             Rm = self.BD.find_tool_orientation(pbs[2], pbs[3], pbs[4], pbs[5])  # orientation of the marker
                             qa4, qa5, qa6 = self.BD.ik_orientation(qa1, qa2, Rm)
-                            img_color = self.BD.overlay_tool(img_color, [qa1, qa2, qa3, qa4, qa5, qa6], (0, 255, 0))
-
+                            img_color = self.BD.overlay_tool(img_color, [qa1, qa2, qa3, qa4, qa5, qa6], (0, 255, 0),intrinsics_matrix,distortion_coefficients)
+                            cv2.imwrite('/home/davinci/dvrkCalibration/lab_meeting/tool_overlay/img_color_' + str(i) + '.png',img_color)
                 # Append data pairs
                 if transform == 'known':
                     # joint angles
@@ -200,8 +241,12 @@ class dvrkCalibration():
                     print('pos_des: ', pos_des_temp)
                     print('pos_act: ', pt)
                     print(' ')
-
+                # import pdb
+                # pdb.set_trace()
+                # self.dvrk.set_joint(joint=[qd1, qd2, qd3, qd4, qd5, qd6])
+                # self.dvrk.set_joint(joint=[qa1, qa2, qa3, qa4, qa5, qa6])
                 # Visualize
+                i += 1
                 cv2.imshow("images", img_color)
                 cv2.waitKey(1) & 0xFF
                 # cv2.waitKey(0)
