@@ -7,8 +7,6 @@ from std_msgs.msg import Float64
 import dvrk.utils.CmnUtil as U
 import dvrk.motion.dvrkVariables as dvrkVar
 from dvrk.motion.dvrkKinematics import dvrkKinematics
-import pdb
-pdb.set_trace()
 import time
 import rospy
 

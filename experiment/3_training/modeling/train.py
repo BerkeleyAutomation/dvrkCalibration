@@ -275,7 +275,7 @@ def create_config():
 	"""
 	config = DotMap()
 	config.peg_data = "training_dataset_brijen/peg_transfer"
-	config.random_data = "/home/davinci/dvrkCalibration/data"
+	config.random_data = "/home/davinci/dvrkCalibration/old_data"
 	config.training_data = config.random_data # which dataset to train on
 	config.actual_inputs = False # whether to use actual as input
 	config.history = 4

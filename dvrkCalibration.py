@@ -7,6 +7,8 @@ import cv2
 import time
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
+import pdb
+pdb.set_trace()
 from vision_new.cameras.Camera import Camera
 from vision_new import vision_constants as cst
 from vision.ZividCaptureNew import ZividCapture
@@ -28,7 +30,7 @@ class dvrkCalibration():
             self.robot_to_cam_ = np.load('/home/davinci/automated_suturing/surgical_suturing_catkin_ws/src/calibration_config/cam_to_robot/Trc_inclined_PSM1.npy')
         elif(psm_number == '2'):
             psm_string = '/PSM2'
-            self.robot_to_cam_ = np.load('/home/davinci/automated_suturing/surgical_suturing_catkin_ws/src/calibration_config/cam_to_robot/Trc_inclined_PSM2.npy')
+            self.robot_to_cam_ = np.load('/home/davinci/dvrkCalibration/data/zivid_to_psm2.npy')
         else:
             print("Please select 1 or 2")
             exit()
@@ -164,26 +166,6 @@ class dvrkCalibration():
             assert len(j1)==len(j2)==len(j3)==len(j4)==len(j5)==len(j6)
             i = 1
             for qd1,qd2,qd3,qd4,qd5,qd6 in zip(j1,j2,j3,j4,j5,j6):
-                # if(i <= 750):
-                #     print(i)
-                #     i+= 1
-                #     continue
-                if(i % 801 == 0):
-                    print("Resetting gripper hold on plus sign")
-                    self.dvrk.set_jaw(JAW_OPEN_ANGLE)
-                    if transform == 'known':
-                        np.save('q_des_raw_'+str(i), q_des)
-                        np.save('q_act_raw_'+str(i), q_act)
-                    elif transform == 'unknown':
-                        # Get transform from robot to camera
-                        np.save('pos_des_'+str(i), pos_des)
-                        np.save('pos_act_', pos_act)
-                        T = U.get_rigid_transform(np.array(pos_act), np.array(pos_des))
-                        np.save('Trc_'+str(i), T)
-                    np.save('t_stamp_raw_'+str(i), time_stamp)
-                    print("Data is successfully saved for trajectories 0 to " + str(i))
-                    user_input = input("Regrip fiducial markers")
-                    self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
                 joint1 = [qd1, qd2, qd3, qd4, qd5, qd6]
                 self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
                 self.dvrk.set_joint(joint=joint1)

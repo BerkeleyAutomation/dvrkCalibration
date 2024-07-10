@@ -3,13 +3,11 @@ import datetime
 
 import cv2
 import numpy as np
-root = '/home/davinci/dvrkCalibration'
-import sys
-sys.path.append(root)
-from vision_new.cameras.AlliedVisionCapture import AlliedVisionCapture
-from vision_new.cameras.AlliedVisionCaptureSingle import AlliedVisionCaptureSingle
-from vision_new.cameras.ZividCapture import ZividCapture
-from vision_new import vision_constants as cst
+from dvrk.vision.cameras.AlliedVisionCapture import AlliedVisionCapture
+from dvrk.vision.cameras.AlliedVisionCaptureSingle import AlliedVisionCaptureSingle
+from dvrk.vision.cameras.ZividCapture import ZividCapture
+from dvrk.vision.cameras.ZedImageCapture import ZedImageCapture
+from dvrk.vision import vision_constants as cst
 
 
 class Camera:
@@ -32,7 +30,6 @@ class Camera:
         rectify_img=False,
     ) -> None:
         self._camera_type = camera_type
-
         if self._camera_type == cst.ALLIED_VISION:
             self.cam = AlliedVisionCapture(use_ROS=use_ROS, visualize=visualize)
             self.cam.start()
@@ -45,20 +42,20 @@ class Camera:
             self._has_depth = False
             self._rectify_img = rectify_img
             self._av_exposure_time = 0
-        # elif self._camera_type == cst.ZED:
-        #     self.cam = ZedImageCapture(
-        #         resolution=resolution,
-        #         brightness=brightness,
-        #         contrast=contrast,
-        #         hue=hue,
-        #         saturation=saturation,
-        #         sharpness=sharpness,
-        #         whitebalance_temp=white_balance,
-        #         exposure=exposure,
-        #         gain=gain,
-        #     )
-        #     self._is_stereo = True
-        #     self._has_depth = False
+        elif self._camera_type == cst.ZED:
+            self.cam = ZedImageCapture(
+                resolution=resolution,
+                brightness=brightness,
+                contrast=contrast,
+                hue=hue,
+                saturation=saturation,
+                sharpness=sharpness,
+                whitebalance_temp=white_balance,
+                exposure=exposure,
+                gain=gain,
+            )
+            self._is_stereo = True
+            self._has_depth = False
         elif self._camera_type == cst.ZIVID:
             self.cam = ZividCapture(which_camera=zivid_cam_choice)
             self.cam.start()
@@ -77,9 +74,9 @@ class Camera:
             img_left, img_right = self.cam.capture(self._av_exposure_time, self._rectify_img)
             self._av_exposure_time = 0
             return img_left, img_right
-        # elif self._camera_type == cst.ZED:
-        #     img_left, img_right = self.cam.capture_image()
-        #     return img_left, img_right
+        elif self._camera_type == cst.ZED:
+            img_left, img_right = self.cam.capture_image()
+            return img_left, img_right
         elif self._camera_type == cst.ZIVID:
             if self._zivid_capture_type == "2d":
                 img = self.cam.capture_2Dimage(color="RGB")
@@ -101,8 +98,8 @@ class Camera:
         return self._has_depth
 
     def set_exposure(self, exposure):
-        # if self._camera_type == cst.ZED:
-        #     self.cam.set_exposure(exposure)
+        if self._camera_type == cst.ZED:
+            self.cam.set_exposure(exposure)
         if self._camera_type == cst.ZIVID:
             self.cam.settings_2d.acquisitions[0].exposure_time = datetime.timedelta(microseconds=exposure)
         # elif self._camera_type == cst.ALLIED_VISION:

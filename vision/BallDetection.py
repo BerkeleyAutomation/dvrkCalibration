@@ -5,13 +5,11 @@ for p in sys.path:
 import numpy as np
 import cv2
 import open3d as o3d
-root = '/home/davinci/dvrkCalibration'
-sys.path.append(root)
-import utils.CmnUtil as U
+import dvrk.utils.CmnUtil as U
 from matplotlib import pyplot as plt
 
 class BallDetection():
-    def __init__(self,robot_to_cam_tf):
+    def __init__(self,robot_to_cam_tf=np.eye(4)):
         # data members
         self.__img_color = []
         self.__img_depth = []
@@ -28,7 +26,8 @@ class BallDetection():
         self.__upper_blue = np.array([120+20, 255, 255])
         self.__lower_yellow = np.array([30-10, 130, 60])
         self.__upper_yellow = np.array([30+10, 255, 255])
-
+        if np.array_equal(np.eye(4),robot_to_cam_tf):
+            print("Robot to camera is identity, warning. It should only be like this for shallow calibration")
         # dimension of tool
         self.d = 35       # length of coordinate (mm)
         self.Lbb = 0.050  # ball1 ~ ball2 (m)

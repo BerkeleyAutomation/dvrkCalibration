@@ -1,11 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
-import sys
-sys.path.append('/home/davinci/dvrkCalibration')
-import pdb
-pdb.set_trace()
-from motion.dvrkArmNew import dvrkArm
+from dvrk.motion.dvrkArm import dvrkArm
+
 
 dvrk_arm = dvrkArm('/PSM2')
 def plot_position(pos_des):
@@ -91,7 +88,7 @@ def random_sampling(sample_number,psm_number):
         pos_max = [0.11, 0.08, -0.120]
     elif(psm_number == '2'):
         #PSM2 for suturing
-        pos_min = [0.0,0.0,-0.107]
+        pos_min = [0.0,0.0,-0.106]
         pos_max = [-0.05, 0.05, -0.105]
     else:
         print("Please select PSM1 or 2")
@@ -99,15 +96,17 @@ def random_sampling(sample_number,psm_number):
     q4_range = np.array([-80, 80])*np.pi/180.
     q5_range = np.array([-60, 60])*np.pi/180.
     q6_range = np.array([-60, 60])*np.pi/180.
+    sample_pos_list = [[0.0,0.0,-0.107],[-0.05,0.0,-0.107],[0.0,0.05,-0.107],[-0.05,0.05,-0.107],[0.0,0.0,-0.105],[-0.05,0.0,-0.105],[0.0,0.05,-0.105],[-0.05,0.05,-0.105]]
     for i in range(sample_number):
         pos_rand = np.random.uniform(pos_min, pos_max)
-        import pdb
-        pdb.set_trace()
         pos_target.append(pos_rand)
         q1, q2, q3 = ik_position(pos_rand)
-        current_joints = dvrk_arm.get_current_joint()
-        new_joints = np.array([q1,q2,q3,current_joints[3],current_joints[4],current_joints[5]])
-        dvrk_arm.set_joint(new_joints)
+        
+        # sample_pos = sample_pos_list[i]
+        # q1, q2, q3 = ik_position(pos_rand)
+        # current_joints = dvrk_arm.get_current_joint()
+        # new_joints = np.array([q1,q2,q3,current_joints[3],current_joints[4],current_joints[5]])
+        # dvrk_arm.set_joint(new_joints)
         q4 = np.random.uniform(q4_range[0], q4_range[1])
         q5 = np.random.uniform(q5_range[0], q5_range[1])
         q6 = np.random.uniform(q6_range[0], q6_range[1])
@@ -118,7 +117,7 @@ def random_sampling(sample_number,psm_number):
 if __name__ == "__main__":
     psm_number = input("Which PSM are you calibrating for suturing workspace. Pick 1 or 2 ")
     print(psm_number)
-    q_target, pos_target = random_sampling(1800,psm_number)
+    q_target, pos_target = random_sampling(1300,psm_number)
     print(np.shape(q_target))
     print(np.shape(pos_target))
     plot_position(pos_target)
