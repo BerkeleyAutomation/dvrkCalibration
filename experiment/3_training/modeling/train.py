@@ -20,8 +20,7 @@ from models import CalibrationModel, CalibrationLSTM
 def load_data(data_dir):
 	#joint_actual = np.load(osp.join(data_dir, "psm1_q_act_raw_800.npy"))
 	#joint_desired = np.load(osp.join(data_dir, "psm1_q_des_raw_800.npy"))
-	import pdb
-	pdb.set_trace()
+
 	# These should each be MxN numpy arrays where M is the number of measurements and N is the dimension size of the measurement (if it is 6 axis force sensor, then probably 6?)
 	# They should be sequetially ordered (i.e. the first measurement is at index 0, the second at 1, etc)
 	# TODO: Change joint_actual to the ground truth data
@@ -44,13 +43,17 @@ def load_data(data_dir):
 	}
 
 
-def format_data(H, fname, use_actual_inputs=False, rnn=False):
+def format_data(H, fname, for_dvrk,use_actual_inputs=False, rnn=False):
 	"""
 	Formats histories from oldest to newest.
 	"""
 	data = load_data(fname)
-	desired = data["joint_desired"][:,3:]
-	actual = data["joint_actual"][:,3:]
+	if(for_dvrk):
+		desired = data["joint_desired"][:,3:]
+		actual = data["joint_actual"][:,3:]
+	else:
+		desired = data["joint_desired"]
+		actual = data["joint_actual"]
 	histories = []
 	
 	for i in range(H):
@@ -125,7 +128,7 @@ class Experiment:
 		self.device = torch.device(config.device)
 
 		# Load and format data		
-		histories, cmds, phys = format_data(config.history, config.training_data, config.actual_inputs, config.rnn)
+		histories, cmds, phys = format_data(config.history, config.training_data, config.for_dvrk,config.actual_inputs, config.rnn)
 		self.validation_size = int(config.validation_prob * len(histories))
 		self.training_histories = histories[self.validation_size:]
 		self.training_cmds = cmds[self.validation_size:]
@@ -226,8 +229,8 @@ class Experiment:
 		self.plot(save=True, show=False)
 
 	def save(self, fname):
-		forward_name = fname + '_forward.out'
-		inverse_name = fname + '_inverse.out'
+		forward_name = fname + '_prime_forward.out'
+		inverse_name = fname + '_prime_inverse.out'
 		torch.save(self.forward_model.state_dict(), osp.join(self.save_dir, forward_name))
 		torch.save(self.inverse_model.state_dict(), osp.join(self.save_dir, inverse_name))
 		print("Saved in " + str(self.save_dir))
@@ -284,6 +287,7 @@ def create_config():
 	config.peg_data = "training_dataset_brijen/peg_transfer"
 
 	# TODO: Change config.random_data to directory with data
+	config.for_dvrk = False
 	config.random_data = "/home/davinci/dvrkCalibration/old_data"
 	config.training_data = config.random_data # which dataset to train on
 	config.actual_inputs = False # whether to use actual as input for history (Could be worth experimenting with)
