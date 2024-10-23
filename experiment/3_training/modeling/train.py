@@ -12,7 +12,7 @@ from torch.optim import Adam
 import torch.nn.functional as F
 
 import sys
-sys.path.append('/home/davinci/dvrkCalibration/experiment/3_training/modeling')
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from dataset import Dataset
 from models import CalibrationModel, CalibrationLSTM
 
@@ -20,7 +20,14 @@ from models import CalibrationModel, CalibrationLSTM
 def load_data(data_dir):
 	#joint_actual = np.load(osp.join(data_dir, "psm1_q_act_raw_800.npy"))
 	#joint_desired = np.load(osp.join(data_dir, "psm1_q_des_raw_800.npy"))
+	import pdb
+	pdb.set_trace()
+	# These should each be MxN numpy arrays where M is the number of measurements and N is the dimension size of the measurement (if it is 6 axis force sensor, then probably 6?)
+	# They should be sequetially ordered (i.e. the first measurement is at index 0, the second at 1, etc)
+	# TODO: Change joint_actual to the ground truth data
 	joint_actual = np.load(osp.join(data_dir, "psm2_q_act_raw_801.npy"))
+
+	# TODO: Change joint_desired to the measured data
 	joint_desired = np.load(osp.join(data_dir, "psm2_q_des_raw_801.npy"))
 	#position_actual = np.load(osp.join(data_dir, "position_act.npy"))
 	#position_desired = np.load(osp.join(data_dir, "position_des.npy"))
@@ -275,10 +282,12 @@ def create_config():
 	"""
 	config = DotMap()
 	config.peg_data = "training_dataset_brijen/peg_transfer"
+
+	# TODO: Change config.random_data to directory with data
 	config.random_data = "/home/davinci/dvrkCalibration/old_data"
 	config.training_data = config.random_data # which dataset to train on
-	config.actual_inputs = False # whether to use actual as input
-	config.history = 4
+	config.actual_inputs = False # whether to use actual as input for history (Could be worth experimenting with)
+	config.history = 4 # How many prior measurements you want as input
 	config.batch_size = 100
 	config.training_iterations = 1000
 	config.lr = 1e-3
