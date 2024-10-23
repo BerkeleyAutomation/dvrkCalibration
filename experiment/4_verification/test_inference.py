@@ -6,12 +6,13 @@ sys.path.append(os.path.join(current_filepath,'../3_training/modeling'))
 from models import CalibrationModel, CalibrationLSTM
 import torch
 import numpy as np
-#TODO: Update forward model, inverse model, and config filenames
+#TODO: Update forward model, inverse model, config name, and then sample input/output data
 forward_model_filename = "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/2024-10-23--03:27:36/model_prime_forward.out"
 inverse_model_filename = "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/2024-10-23--03:27:36/model_prime_inverse.out"
 config_filename = "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/2024-10-23--03:27:36/config.pkl"
 sample_desired_data = np.load('/home/davinci/dvrkCalibration/old_data/psm2_q_des_raw_801.npy')
 sample_actual_data = np.load('/home/davinci/dvrkCalibration/old_data/psm2_q_act_raw_801.npy')
+
 forward_rnn_model_ = None
 inverse_rnn_model_ = None
 with open(config_filename, "rb") as f:

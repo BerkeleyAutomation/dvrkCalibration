@@ -19,3 +19,10 @@ conda activate dvrk_calibration_env
 cd ~/dvrkCalibration/experiment/3_training/modeling
 python train.py
 ```
+
+## Inference
+```
+conda activate dvrk_calibration_env
+cd /home/davinci/dvrkCalibration/experiment/4_verification
+python test_inference.py
+```
