@@ -1,15 +1,18 @@
 import sys
+
 for p in sys.path:
-    if p == '/opt/ros/kinetic/lib/python2.7/dist-packages':
-        sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+    if p == "/opt/ros/kinetic/lib/python2.7/dist-packages":
+        sys.path.remove("/opt/ros/kinetic/lib/python2.7/dist-packages")
 import numpy as np
 import cv2
 import open3d as o3d
 import dvrk.utils.CmnUtil as U
 from matplotlib import pyplot as plt
+from scipy.optimize import minimize, least_squares
 
-class BallDetection():
-    def __init__(self,robot_to_cam_tf=np.eye(4)):
+
+class BallDetection:
+    def __init__(self, robot_to_cam_tf=np.eye(4)):
         # data members
         self.__img_color = []
         self.__img_depth = []
@@ -18,18 +21,18 @@ class BallDetection():
         # thresholding value
         # self.__masking_depth = [300, 850]
         self.__masking_depth = [300, 1000]
-        self.__lower_red = np.array([0-20, 130, 40])
-        self.__upper_red = np.array([0+20, 255, 255])
-        self.__lower_green = np.array([60-20, 130, 40])
-        self.__upper_green = np.array([60+20, 255, 255])
-        self.__lower_blue = np.array([120-20, 130, 40])
-        self.__upper_blue = np.array([120+20, 255, 255])
-        self.__lower_yellow = np.array([30-10, 130, 60])
-        self.__upper_yellow = np.array([30+10, 255, 255])
-        if np.array_equal(np.eye(4),robot_to_cam_tf):
+        self.__lower_red = np.array([0 - 20, 130, 40])
+        self.__upper_red = np.array([0 + 20, 255, 255])
+        self.__lower_green = np.array([60 - 20, 130, 40])
+        self.__upper_green = np.array([60 + 20, 255, 255])
+        self.__lower_blue = np.array([120 - 20, 130, 40])
+        self.__upper_blue = np.array([120 + 20, 255, 255])
+        self.__lower_yellow = np.array([30 - 10, 130, 60])
+        self.__upper_yellow = np.array([30 + 10, 255, 255])
+        if np.array_equal(np.eye(4), robot_to_cam_tf):
             print("Robot to camera is identity, warning. It should only be like this for shallow calibration")
         # dimension of tool
-        self.d = 35       # length of coordinate (mm)
+        self.d = 35  # length of coordinate (mm)
         self.Lbb = 0.050  # ball1 ~ ball2 (m)
         self.Lbp = 0.017  # ball2 ~ pitch (m)
         self.L1 = 0.4318  # Rcc (m)
@@ -43,15 +46,23 @@ class BallDetection():
         self.trc = self.Trc[:3, 3]
 
         # camera intrinsic parameters
-        self.__D = [-0.2826650142669678, 0.42553916573524475, -0.0005135679966770113, -0.000839113024994731,
-                    -0.5215581655502319]
+        self.__D = [
+            -0.2826650142669678,
+            0.42553916573524475,
+            -0.0005135679966770113,
+            -0.000839113024994731,
+            -0.5215581655502319,
+        ]
         # self.__K = [[2776.604248046875, 0.0, 952.436279296875], [0.0, 2776.226318359375, 597.9248046875], [0.0, 0.0, 1.0]]
         # self.__K = [[2840.0, 0.0, 945], [0.0, 2890.0, 603], [0.0, 0.0, 1.0]]
         self.__K = [[2770, 0.0, 955], [0.0, 2775, 601], [0.0, 0.0, 1.0]]
         self.__R = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        self.__P = [[2776.604248046875, 0.0, 952.436279296875], [0.0, 0.0, 2776.226318359375],
-                    [597.9248046875, 0.0, 0.0], [0.0,
-                                                 1.0, 0.0]]
+        self.__P = [
+            [2776.604248046875, 0.0, 952.436279296875],
+            [0.0, 0.0, 2776.226318359375],
+            [597.9248046875, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
         self.__fx = self.__K[0][0]
         self.__fy = self.__K[1][1]
         self.__cx = self.__K[0][2]
@@ -68,9 +79,9 @@ class BallDetection():
         self.__hcr = 800
 
     def img_crop(self, img_color, img_depth, img_point):
-        color_cropped = img_color[self.__ycr:self.__ycr + self.__hcr, self.__xcr:self.__xcr + self.__wcr]
-        depth_cropped = img_depth[self.__ycr:self.__ycr + self.__hcr, self.__xcr:self.__xcr + self.__wcr]
-        point_cropped = img_point[self.__ycr:self.__ycr + self.__hcr, self.__xcr:self.__xcr + self.__wcr]
+        color_cropped = img_color[self.__ycr : self.__ycr + self.__hcr, self.__xcr : self.__xcr + self.__wcr]
+        depth_cropped = img_depth[self.__ycr : self.__ycr + self.__hcr, self.__xcr : self.__xcr + self.__wcr]
+        point_cropped = img_point[self.__ycr : self.__ycr + self.__hcr, self.__xcr : self.__xcr + self.__wcr]
         return color_cropped, depth_cropped, point_cropped
 
     def pixel2world(self, x, y, depth):
@@ -79,50 +90,50 @@ class BallDetection():
         Zc = depth
         return Xc, Yc, Zc
 
-    def world2pixel(self, Xc, Yc, Zc,intrinsics_matrix,distortion_coefficients, Rc=0):
-        fx = intrinsics_matrix[0,0]
-        cx = intrinsics_matrix[0,2]
-        fy = intrinsics_matrix[1,1]
-        cy = intrinsics_matrix[1,2]
-        x = fx * Xc / Zc + cx #- self.__xcr
-        y = fy * Yc / Zc + cy #- self.__ycr
-        r = (fx+fy)/2 * Rc / Zc
+    def world2pixel(self, Xc, Yc, Zc, intrinsics_matrix, distortion_coefficients, Rc=0):
+        fx = intrinsics_matrix[0, 0]
+        cx = intrinsics_matrix[0, 2]
+        fy = intrinsics_matrix[1, 1]
+        cy = intrinsics_matrix[1, 2]
+        x = fx * Xc / Zc + cx  # - self.__xcr
+        y = fy * Yc / Zc + cy  # - self.__ycr
+        r = (fx + fy) / 2 * Rc / Zc
         return int(x), int(y), int(r)
 
-    def overlay_balls(self, img_color, pbs,intrinsics_matrix,distortion_coefficients):
+    def overlay_balls(self, img_color, pbs, intrinsics_matrix, distortion_coefficients):
         overlayed = img_color.copy()
         for pb in pbs:
-            if pb==[]:
+            if pb == []:
                 pass
             else:
-                pb_img = self.world2pixel(pb[0], pb[1], pb[2], intrinsics_matrix,distortion_coefficients,pb[3])
+                pb_img = self.world2pixel(pb[0], pb[1], pb[2], intrinsics_matrix, distortion_coefficients, pb[3])
                 cv2.circle(overlayed, (pb_img[0], pb_img[1]), pb_img[2], (0, 255, 255), 2)
                 cv2.circle(overlayed, (pb_img[0], pb_img[1]), 3, (0, 255, 255), -1)
-                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/overlayed.png',overlayed)
+                cv2.imwrite("/home/davinci/dvrkCalibration/debugging/overlayed.png", overlayed)
         return overlayed
 
-    def overlay_tool(self, img_color, joint_angles, color,intrinsics_matrix,distortion_coefficients):
-        q1,q2,q3,q4,q5,q6 = joint_angles
+    def overlay_tool(self, img_color, joint_angles, color, intrinsics_matrix, distortion_coefficients):
+        q1, q2, q3, q4, q5, q6 = joint_angles
         # 3D points w.r.t camera frame
-        pb = self.Rrc.T.dot(np.array([0,0,0])-self.trc)*1000    # base position
-        p5 = self.fk_position(q1,q2,q3,q4,q5,q6,L1=self.L1,L2=self.L2,L3=0,L4=0)
-        p5 = self.Rrc.T.dot(np.array(p5)-self.trc)*1000  # pitch axis
-        p6 = self.fk_position(q1,q2,q3,q4,q5,q6,L1=self.L1,L2=self.L2,L3=self.L3,L4=0)
-        p6 = self.Rrc.T.dot(np.array(p6)-self.trc)*1000  # yaw axis
-        p7 = self.fk_position(q1,q2,q3,q4,q5,q6,L1=self.L1,L2=self.L2,L3=self.L3,L4=self.L4+0.005)
-        p7 = self.Rrc.T.dot(np.array(p7)-self.trc)*1000  # tip
+        pb = self.Rrc.T.dot(np.array([0, 0, 0]) - self.trc) * 1000  # base position
+        p5 = self.fk_position(q1, q2, q3, q4, q5, q6, L1=self.L1, L2=self.L2, L3=0, L4=0)
+        p5 = self.Rrc.T.dot(np.array(p5) - self.trc) * 1000  # pitch axis
+        p6 = self.fk_position(q1, q2, q3, q4, q5, q6, L1=self.L1, L2=self.L2, L3=self.L3, L4=0)
+        p6 = self.Rrc.T.dot(np.array(p6) - self.trc) * 1000  # yaw axis
+        p7 = self.fk_position(q1, q2, q3, q4, q5, q6, L1=self.L1, L2=self.L2, L3=self.L3, L4=self.L4 + 0.005)
+        p7 = self.Rrc.T.dot(np.array(p7) - self.trc) * 1000  # tip
 
-        pb_img = self.world2pixel(pb[0], pb[1], pb[2],intrinsics_matrix,distortion_coefficients)
-        p5_img = self.world2pixel(p5[0], p5[1], p5[2],intrinsics_matrix,distortion_coefficients)
-        p6_img = self.world2pixel(p6[0], p6[1], p6[2],intrinsics_matrix,distortion_coefficients)
-        p7_img = self.world2pixel(p7[0], p7[1], p7[2],intrinsics_matrix,distortion_coefficients)
+        pb_img = self.world2pixel(pb[0], pb[1], pb[2], intrinsics_matrix, distortion_coefficients)
+        p5_img = self.world2pixel(p5[0], p5[1], p5[2], intrinsics_matrix, distortion_coefficients)
+        p6_img = self.world2pixel(p6[0], p6[1], p6[2], intrinsics_matrix, distortion_coefficients)
+        p7_img = self.world2pixel(p7[0], p7[1], p7[2], intrinsics_matrix, distortion_coefficients)
 
         overlayed = img_color.copy()
-        self.drawline(overlayed, pb_img[0:2], p5_img[0:2], (0,255,0), 1, style='dotted', gap=8)
+        self.drawline(overlayed, pb_img[0:2], p5_img[0:2], (0, 255, 0), 1, style="dotted", gap=8)
         cv2.circle(overlayed, p5_img[0:2], 2, color, 2)
-        self.drawline(overlayed, p5_img[0:2], p6_img[0:2], (0,255,0), 1, style='dotted', gap=8)
+        self.drawline(overlayed, p5_img[0:2], p6_img[0:2], (0, 255, 0), 1, style="dotted", gap=8)
         cv2.circle(overlayed, p6_img[0:2], 2, color, 2)
-        self.drawline(overlayed, p6_img[0:2], p7_img[0:2], (0,255,0), 1, style='dotted', gap=8)
+        self.drawline(overlayed, p6_img[0:2], p7_img[0:2], (0, 255, 0), 1, style="dotted", gap=8)
         cv2.circle(overlayed, p7_img[0:2], 2, color, 2)
         return overlayed
 
@@ -137,23 +148,23 @@ class BallDetection():
         p5_img = self.world2pixel(p5[0], p5[1], p5[2])
 
         overlayed = img_color.copy()
-        self.drawline(overlayed, pb_img[0:2], p5_img[0:2], (0, 255, 0), 1, style='dotted', gap=8)
+        self.drawline(overlayed, pb_img[0:2], p5_img[0:2], (0, 255, 0), 1, style="dotted", gap=8)
         cv2.circle(overlayed, p5_img[0:2], 2, color, 2)
         return overlayed
 
-    def drawline(self, img, pt1, pt2, color, thickness=1, style='dotted', gap=20):
-        dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** .5
+    def drawline(self, img, pt1, pt2, color, thickness=1, style="dotted", gap=20):
+        dist = ((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2) ** 0.5
         pts = []
         for i in np.arange(0, dist, gap):
             r = i / dist
-            x = int((pt1[0] * (1 - r) + pt2[0] * r) + .5)
-            y = int((pt1[1] * (1 - r) + pt2[1] * r) + .5)
+            x = int((pt1[0] * (1 - r) + pt2[0] * r) + 0.5)
+            y = int((pt1[1] * (1 - r) + pt2[1] * r) + 0.5)
             pts.append((x, y))
 
-        if style == 'dotted':
+        if style == "dotted":
             for p in pts:
                 cv2.circle(img, p, thickness, color, -1)
-        elif style == 'dashed':
+        elif style == "dashed":
             st = pts[0]
             ed = pts[0]
             i = 0
@@ -171,61 +182,116 @@ class BallDetection():
 
         # Color masking
         hsv = cv2.cvtColor(depth_masked, cv2.COLOR_BGR2HSV)
-        if color == 'red':
+        if color == "red":
             masked = cv2.inRange(hsv, self.__lower_red, self.__upper_red)
-        elif color == 'green':
+        elif color == "green":
             masked = cv2.inRange(hsv, self.__lower_green, self.__upper_green)
-        elif color == 'blue':
+        elif color == "blue":
             masked = cv2.inRange(hsv, self.__lower_blue, self.__upper_blue)
-        elif color == 'yellow':
+        elif color == "yellow":
             masked = cv2.inRange(hsv, self.__lower_yellow, self.__upper_yellow)
         return masked
 
-    def plot_sphere(self,center, radius,points_ball):
+    def plot_sphere(self, center, radius, points_ball):
         # Center coordinates
         x0, y0, z0 = center
-        
+
         # Generate points on a sphere using spherical coordinates
-        phi = np.linspace(0, np.pi, 50)   # Azimuthal angle
-        theta = np.linspace(0, 2*np.pi, 50)   # Polar angle
-        
+        phi = np.linspace(0, np.pi, 50)  # Azimuthal angle
+        theta = np.linspace(0, 2 * np.pi, 50)  # Polar angle
+
         # Cartesian coordinates of the points on the sphere
         x = radius * np.outer(np.sin(theta), np.cos(phi)) + x0
         y = radius * np.outer(np.sin(theta), np.sin(phi)) + y0
         z = radius * np.outer(np.cos(theta), np.ones_like(phi)) + z0
-        
+
         # Plotting
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.plot_surface(x, y, z, color='r', alpha=0.1)  # Plot the surface of the sphere
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z, color="r", alpha=0.1)  # Plot the surface of the sphere
 
-         # Plot points
-        ax.scatter(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2], c='b', marker='o')
-        
+        # Plot points
+        ax.scatter(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2], c="b", marker="o")
+
         # Adjust plot limits to include the sphere
         ax.set_xlim([x0 - radius, x0 + radius])
         ax.set_ylim([y0 - radius, y0 + radius])
         ax.set_zlim([z0 - radius, z0 + radius])
-        
+
         # Set labels and title
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_title(f'Sphere with center ({x0}, {y0}, {z0}) and radius {radius}')
-        
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.set_title(f"Sphere with center ({x0}, {y0}, {z0}) and radius {radius}")
+
         # Show plot
         plt.show()
 
+    def fit_ball(self, infilled, img_point, potential_radii):
+        infilled = cv2.cvtColor(infilled, cv2.COLOR_BGR2GRAY)
+        indices = np.argwhere(infilled == 255)
+        points_ball = np.array([img_point[p[0], p[1]] for p in indices])
+        points_ball_no_nan = points_ball[~np.isnan(points_ball).any(axis=1)]
+        xc, yc, zc, rc = self.fit_circle_3d(
+            points_ball_no_nan[:, 0], points_ball_no_nan[:, 1], points_ball_no_nan[:, 2]
+        )
+
+        opt_xc, opt_yc, opt_zc, opt_rc = self.optimize_circle_3d(
+            points_ball_no_nan[:, 0], points_ball_no_nan[:, 1], points_ball_no_nan[:, 2], potential_radii
+        )
+
+        return [opt_xc, opt_yc, opt_zc, opt_rc]
+
+    def find_shallow_balls(self, img_color, img_depth, img_point):
+        pb = []
+        big_red_radius = 12.0
+        small_red_radius = 10.0
+        red_masked = self.mask_image(img_color, img_depth, img_point, "red")
+        cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_red.png", red_masked)
+        cnts, _ = cv2.findContours(red_masked, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+        infilled0 = np.zeros(np.shape(img_color), np.uint8)
+        infilled1 = np.zeros(np.shape(img_color), np.uint8)
+        if len(cnts) >= 2:
+            cv2.drawContours(infilled0, [cnts[0]], 0, (255, 255, 255), -1)
+            cv2.drawContours(infilled1, [cnts[1]], 0, (255, 255, 255), -1)
+            cv2.imwrite("/home/davinci/dvrkCalibration/debugging/big_ball.png", infilled0)
+            cv2.imwrite("/home/davinci/dvrkCalibration/debugging/small_ball.png", infilled1)
+            ball0 = self.fit_ball(
+                infilled=infilled0, img_point=img_point, potential_radii=[big_red_radius, small_red_radius]
+            )
+            ball1 = self.fit_ball(
+                infilled=infilled1, img_point=img_point, potential_radii=[big_red_radius, small_red_radius]
+            )
+            small_ball = None
+            big_ball = None
+            if abs(ball0[3] - big_red_radius) < abs(ball0[3] - small_red_radius):
+                big_ball = ball0
+            else:
+                small_ball = ball0
+            if abs(ball1[3] - big_red_radius) < abs(ball1[3] - small_red_radius):
+                big_ball = ball1
+            else:
+                small_ball = ball1
+            if big_ball is None or small_ball is None:
+                print("Big and small ball were too similar in size")
+                return pb
+            if big_red_radius - 0.5 < big_ball[3] < big_red_radius + 0.5:
+                pb.append(big_ball)
+            if small_red_radius - 0.5 < small_ball[3] < small_red_radius + 0.5:
+                pb.append(small_ball)
+        return pb
+
     def find_balls(self, img_color, img_depth, img_point):
 
-        red_masked = self.mask_image(img_color, img_depth, img_point, 'red')
-        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_red.png',red_masked)
-        green_masked = self.mask_image(img_color, img_depth, img_point, 'green')
-        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_green.png',green_masked)
-        blue_masked = self.mask_image(img_color, img_depth, img_point, 'blue')
-        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_blue.png',blue_masked)
-        yellow_masked = self.mask_image(img_color, img_depth, img_point, 'yellow')
-        cv2.imwrite('/home/davinci/dvrkCalibration/debugging/masked_yellow.png',yellow_masked)
+        red_masked = self.mask_image(img_color, img_depth, img_point, "red")
+        cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_red.png", red_masked)
+        green_masked = self.mask_image(img_color, img_depth, img_point, "green")
+        cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_green.png", green_masked)
+        blue_masked = self.mask_image(img_color, img_depth, img_point, "blue")
+        cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_blue.png", blue_masked)
+        yellow_masked = self.mask_image(img_color, img_depth, img_point, "yellow")
+        cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_yellow.png", yellow_masked)
 
         # cv2.imshow("red", red_masked)
         # cv2.imshow("green", green_masked)
@@ -233,33 +299,39 @@ class BallDetection():
         # cv2.imshow("yellow", yellow_masked)
         # cv2.waitKey(0)
 
-        masked_img = [lambda:red_masked, lambda:red_masked, lambda:red_masked, lambda:green_masked, lambda:blue_masked, lambda:yellow_masked]
-        radius = [12.0, 10.0, 8.0, 8.0, 8.0, 8.0]    # (mm)
+        masked_img = [
+            lambda: red_masked,
+            lambda: red_masked,
+            lambda: red_masked,
+            lambda: green_masked,
+            lambda: blue_masked,
+            lambda: yellow_masked,
+        ]
+        radius = [12.0, 10.0, 8.0, 8.0, 8.0, 8.0]  # (mm)
         pb = []
         print("Nunber of masked images: " + str(len(masked_img)))
         for i in range(len(masked_img)):
             # Find contours in the mask and initialize the current (x, y) center of the ball
             cnts, _ = cv2.findContours(masked_img[i](), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
-            if len(cnts)==0:
+            if len(cnts) == 0:
                 pb.append([])
             else:
                 # Find 3D points of a ball
                 # Get the pixel coordinates inside the contour
                 infilled = np.zeros(np.shape(img_color), np.uint8)
                 cv2.drawContours(infilled, [cnts[0]], 0, (255, 255, 255), -1)
-                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/biggestContour.png',infilled)
+                cv2.imwrite("/home/davinci/dvrkCalibration/debugging/biggestContour.png", infilled)
                 infilled = cv2.cvtColor(infilled, cv2.COLOR_BGR2GRAY)
                 infilled_inv = cv2.bitwise_not(infilled)
-                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/infilled_inv.png',infilled_inv)
+                cv2.imwrite("/home/davinci/dvrkCalibration/debugging/infilled_inv.png", infilled_inv)
                 ball_masked = cv2.bitwise_and(masked_img[i](), masked_img[i](), mask=infilled)
-                cv2.imwrite('/home/davinci/dvrkCalibration/debugging/ball_masked.png',ball_masked)
+                cv2.imwrite("/home/davinci/dvrkCalibration/debugging/ball_masked.png", ball_masked)
 
                 # Get the point clouds
                 args = np.argwhere(ball_masked == 255)
                 points_ball = np.array([img_point[p[0], p[1]] for p in args])
-                
-                
+
                 # Saving images
                 # black = np.zeros_like(img_color)
                 # for p in args:
@@ -270,19 +342,19 @@ class BallDetection():
 
                 # Linear regression to fit the circle into the point cloud
                 xc, yc, zc, rc = self.fit_circle_3d(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2])
-                #self.plot_sphere(np.array([xc,yc,zc]),rc,points_ball)
-                if radius[i]-2 < rc < radius[i]+2:
+                # self.plot_sphere(np.array([xc,yc,zc]),rc,points_ball)
+                if radius[i] - 2 < rc < radius[i] + 2:
                     pb.append([xc, yc, zc, rc])
                 else:
                     pb.append([])
 
                 # Masking the detected region
                 red_masked = cv2.bitwise_and(masked_img[i](), masked_img[i](), mask=infilled_inv)
-        return pb   # (mm)
+        return pb  # (mm)
 
     def fit_circle_3d(self, x, y, z, w=[]):
         A = np.array([x, y, z, np.ones(len(x))]).T
-        b = x ** 2 + y ** 2 + z ** 2
+        b = x**2 + y**2 + z**2
 
         # Modify A,b for weighted least squares
         if len(w) == len(x):
@@ -297,47 +369,95 @@ class BallDetection():
         xc = c[0] / 2
         yc = c[1] / 2
         zc = c[2] / 2
-        r = np.sqrt(c[3] + xc ** 2 + yc ** 2 + zc ** 2)
+        r = np.sqrt(c[3] + xc**2 + yc**2 + zc**2)
         return xc, yc, zc, r
+
+    def optimize_circle_3d(self, x, y, z, potential_radii):
+        # Initialize with Least Squares
+        def residuals(params, x, y, z):
+            a, b, c, r = params
+            return np.sqrt((x - a) ** 2 + (y - b) ** 2 + (z - c) ** 2) - r
+
+        # Figure out if it is closer to the big ball or the small ball
+        initial_radius = sum(potential_radii) / len(potential_radii)
+        initial_guess = np.array([np.mean(x), np.mean(y), np.mean(z), initial_radius])
+        least_squares_result = least_squares(
+            residuals,
+            initial_guess,
+            args=(
+                x,
+                y,
+                z,
+            ),
+        )
+        if not least_squares_result.success:
+            import pdb
+
+            pdb.set_trace()
+        radius_min = None
+        radius_max = None
+        # If it is closer to the size of the bigger ball, optimize for that
+        # Otherwise optimize it to be closer to the smaller ball
+        if abs(potential_radii[0] - least_squares_result.x[3]) < abs(potential_radii[1] - least_squares_result.x[3]):
+            radius_min = potential_radii[0] - 0.5
+            radius_max = potential_radii[0] + 0.5
+        else:
+            radius_min = potential_radii[1] - 0.5
+            radius_max = potential_radii[1] + 0.5
+
+        def objective(params):
+            x_c, y_c, z_c, r = params
+            distances = np.sqrt((x - x_c) ** 2 + (y - y_c) ** 2 + (z - z_c) ** 2)
+            loss = np.sum((distances - r) ** 2)
+            return loss
+
+        initial_guess = least_squares_result.x
+        bounds = [(None, None), (None, None), (None, None), (radius_min, radius_max)]
+        result_powell = minimize(objective, initial_guess, bounds=bounds, method="Powell")
+        if not result_powell.success:
+            import pdb
+
+            pdb.set_trace()
+        return result_powell.x
 
     # Get tool position of the pitch axis from two ball positions w.r.t. camera base coordinate
     def find_tool_position(self, pb1, pb2):
         pb1 = np.asarray(pb1[0:3], dtype=float)
         pb2 = np.asarray(pb2[0:3], dtype=float)
-        p_pitch = ((self.Lbb+self.Lbp)*pb2-self.Lbp*pb1)/self.Lbb
-        return p_pitch    # (mm), w.r.t. camera base coordinate
+        p_pitch = ((self.Lbb + self.Lbp) * pb2 - self.Lbp * pb1) / self.Lbb
+        return p_pitch  # (mm), w.r.t. camera base coordinate
 
     # Get orientation from three ball positions w.r.t. robot base coordinate
     def find_tool_orientation(self, pbr, pbg, pbb, pby):
-        pbr = np.array(pbr) # red
-        pbg = np.array(pbg) # green
-        pbb = np.array(pbb) # blue
-        pby = np.array(pby) # yellow
+        pbr = np.array(pbr)  # red
+        pbg = np.array(pbg)  # green
+        pbb = np.array(pbb)  # blue
+        pby = np.array(pby)  # yellow
 
         pts1 = np.array([[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]])  # base pose w.r.t. robot coordinate
         # normalized direction vectors
-        if pbr.size==0:   # red ball is occluded
-            pborg = (pbg + pby)/2
-            v1 = self.Rrc.dot((pborg-pbb)[0:3])
-            v1 = v1/np.linalg.norm(v1)
-            v2 = self.Rrc.dot((pbg-pby)[0:3])
-            v2 = v2/np.linalg.norm(v2)
-            v3 = np.cross(v1,v2)/(np.linalg.norm(v1)*np.linalg.norm(v2))
-        elif pbg.size==0:   # green ball is occluded
+        if pbr.size == 0:  # red ball is occluded
+            pborg = (pbg + pby) / 2
+            v1 = self.Rrc.dot((pborg - pbb)[0:3])
+            v1 = v1 / np.linalg.norm(v1)
+            v2 = self.Rrc.dot((pbg - pby)[0:3])
+            v2 = v2 / np.linalg.norm(v2)
+            v3 = np.cross(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+        elif pbg.size == 0:  # green ball is occluded
             pborg = (pbr + pbb) / 2
             v1 = self.Rrc.dot((pbr - pbb)[0:3])
             v1 = v1 / np.linalg.norm(v1)
             v2 = self.Rrc.dot((pborg - pby)[0:3])
             v2 = v2 / np.linalg.norm(v2)
             v3 = np.cross(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-        elif pbb.size==0:   # blue ball is occluded
+        elif pbb.size == 0:  # blue ball is occluded
             pborg = (pbg + pby) / 2
             v1 = self.Rrc.dot((pbr - pborg)[0:3])
             v1 = v1 / np.linalg.norm(v1)
             v2 = self.Rrc.dot((pbg - pby)[0:3])
             v2 = v2 / np.linalg.norm(v2)
             v3 = np.cross(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-        elif pby.size==0:   # yellow ball is occluded
+        elif pby.size == 0:  # yellow ball is occluded
             pborg = (pbr + pbb) / 2
             v1 = self.Rrc.dot((pbr - pbb)[0:3])
             v1 = v1 / np.linalg.norm(v1)
@@ -355,57 +475,100 @@ class BallDetection():
         pts1 = pts1.T
         pts2 = pts2.T
         Rb = pts2.dot(np.linalg.inv(pts1))
-        return Rb   # w.r.t. robot base coordinate
+        return Rb  # w.r.t. robot base coordinate
 
     def fk_position(self, q1, q2, q3, q4, q5, q6, L1=0, L2=0, L3=0, L4=0):
-        xtip = L2 * np.cos(q2)*np.sin(q1) - L1*np.cos(q2) * np.sin(q1) + q3 * np.cos(q2) * np.sin(q1) + L3 * np.cos(
-            q2) * np.cos(q5) * np.sin(
-            q1) + L4 * np.cos(q1) * np.cos(q4) * np.sin(q6) - L3 * np.cos(q1) * np.sin(q4) * np.sin(q5) + L4 * np.cos(
-            q2) * np.cos(q5) * np.cos(
-            q6) * np.sin(q1) - L4 * np.cos(q1) * np.cos(q6) * np.sin(q4) * np.sin(q5) - L3 * np.cos(q4) * np.sin(
-            q1) * np.sin(q2) * np.sin(
-            q5) - L4 * np.sin(q1) * np.sin(q2) * np.sin(q4) * np.sin(q6) - L4 * np.cos(q4) * np.cos(q6) * np.sin(
-            q1) * np.sin(q2) * np.sin(q5)
+        xtip = (
+            L2 * np.cos(q2) * np.sin(q1)
+            - L1 * np.cos(q2) * np.sin(q1)
+            + q3 * np.cos(q2) * np.sin(q1)
+            + L3 * np.cos(q2) * np.cos(q5) * np.sin(q1)
+            + L4 * np.cos(q1) * np.cos(q4) * np.sin(q6)
+            - L3 * np.cos(q1) * np.sin(q4) * np.sin(q5)
+            + L4 * np.cos(q2) * np.cos(q5) * np.cos(q6) * np.sin(q1)
+            - L4 * np.cos(q1) * np.cos(q6) * np.sin(q4) * np.sin(q5)
+            - L3 * np.cos(q4) * np.sin(q1) * np.sin(q2) * np.sin(q5)
+            - L4 * np.sin(q1) * np.sin(q2) * np.sin(q4) * np.sin(q6)
+            - L4 * np.cos(q4) * np.cos(q6) * np.sin(q1) * np.sin(q2) * np.sin(q5)
+        )
 
-        ytip = L1 * np.sin(q2) - L2 * np.sin(q2) - q3 * np.sin(q2) - L3 * np.cos(q5) * np.sin(q2) - L3 * np.cos(
-            q2) * np.cos(q4) * np.sin(
-            q5) - L4 * np.cos(q5) * np.cos(q6) * np.sin(q2) - L4 * np.cos(q2) * np.sin(q4) * np.sin(q6) - L4 * np.cos(
-            q2) * np.cos(q4) * np.cos(
-            q6) * np.sin(q5)
+        ytip = (
+            L1 * np.sin(q2)
+            - L2 * np.sin(q2)
+            - q3 * np.sin(q2)
+            - L3 * np.cos(q5) * np.sin(q2)
+            - L3 * np.cos(q2) * np.cos(q4) * np.sin(q5)
+            - L4 * np.cos(q5) * np.cos(q6) * np.sin(q2)
+            - L4 * np.cos(q2) * np.sin(q4) * np.sin(q6)
+            - L4 * np.cos(q2) * np.cos(q4) * np.cos(q6) * np.sin(q5)
+        )
 
-        ztip = L1 * np.cos(q1) * np.cos(q2) - L2 * np.cos(q1) * np.cos(q2) - q3 * np.cos(q1) * np.cos(q2) - L3 * np.cos(
-            q1) * np.cos(q2) * np.cos(
-            q5) + L4 * np.cos(q4) * np.sin(q1) * np.sin(q6) - L3 * np.sin(q1) * np.sin(q4) * np.sin(q5) + L3 * np.cos(
-            q1) * np.cos(q4) * np.sin(
-            q2) * np.sin(q5) + L4 * np.cos(q1) * np.sin(q2) * np.sin(q4) * np.sin(q6) - L4 * np.cos(q6) * np.sin(
-            q1) * np.sin(q4) * np.sin(
-            q5) - L4 * np.cos(q1) * np.cos(q2) * np.cos(q5) * np.cos(q6) + L4 * np.cos(q1) * np.cos(q4) * np.cos(
-            q6) * np.sin(q2) * np.sin(q5)
+        ztip = (
+            L1 * np.cos(q1) * np.cos(q2)
+            - L2 * np.cos(q1) * np.cos(q2)
+            - q3 * np.cos(q1) * np.cos(q2)
+            - L3 * np.cos(q1) * np.cos(q2) * np.cos(q5)
+            + L4 * np.cos(q4) * np.sin(q1) * np.sin(q6)
+            - L3 * np.sin(q1) * np.sin(q4) * np.sin(q5)
+            + L3 * np.cos(q1) * np.cos(q4) * np.sin(q2) * np.sin(q5)
+            + L4 * np.cos(q1) * np.sin(q2) * np.sin(q4) * np.sin(q6)
+            - L4 * np.cos(q6) * np.sin(q1) * np.sin(q4) * np.sin(q5)
+            - L4 * np.cos(q1) * np.cos(q2) * np.cos(q5) * np.cos(q6)
+            + L4 * np.cos(q1) * np.cos(q4) * np.cos(q6) * np.sin(q2) * np.sin(q5)
+        )
         return [xtip, ytip, ztip]
 
     def fk_orientation(self, j1, j2, j3, j4, j5, j6):
         # R08
-        r11 = np.cos(j1) * np.cos(j4) * np.cos(j6) - np.cos(j2) * np.cos(j5) * np.sin(j1) * np.sin(j6) - np.cos(
-            j6) * np.sin(j1) * np.sin(j2) * np.sin(j4) + np.cos(j1) * np.sin(j4) * np.sin(j5) * np.sin(j6) + np.cos(
-            j4) * np.sin(j1) * np.sin(j2) * np.sin(j5) * np.sin(j6)
-        r12 = np.cos(j1) * np.cos(j5) * np.sin(j4) + np.cos(j2) * np.sin(j1) * np.sin(j5) + np.cos(j4) * np.cos(
-            j5) * np.sin(j1) * np.sin(j2)
-        r13 = np.cos(j1) * np.cos(j6) * np.sin(j4) * np.sin(j5) - np.cos(j2) * np.cos(j5) * np.cos(j6) * np.sin(
-            j1) - np.cos(j1) * np.cos(j4) * np.sin(j6) + np.sin(j1) * np.sin(j2) * np.sin(j4) * np.sin(j6) + np.cos(
-            j4) * np.cos(j6) * np.sin(j1) * np.sin(j2) * np.sin(j5)
-        r21 = np.cos(j5) * np.sin(j2) * np.sin(j6) - np.cos(j2) * np.cos(j6) * np.sin(j4) + np.cos(j2) * np.cos(
-            j4) * np.sin(j5) * np.sin(j6)
+        r11 = (
+            np.cos(j1) * np.cos(j4) * np.cos(j6)
+            - np.cos(j2) * np.cos(j5) * np.sin(j1) * np.sin(j6)
+            - np.cos(j6) * np.sin(j1) * np.sin(j2) * np.sin(j4)
+            + np.cos(j1) * np.sin(j4) * np.sin(j5) * np.sin(j6)
+            + np.cos(j4) * np.sin(j1) * np.sin(j2) * np.sin(j5) * np.sin(j6)
+        )
+        r12 = (
+            np.cos(j1) * np.cos(j5) * np.sin(j4)
+            + np.cos(j2) * np.sin(j1) * np.sin(j5)
+            + np.cos(j4) * np.cos(j5) * np.sin(j1) * np.sin(j2)
+        )
+        r13 = (
+            np.cos(j1) * np.cos(j6) * np.sin(j4) * np.sin(j5)
+            - np.cos(j2) * np.cos(j5) * np.cos(j6) * np.sin(j1)
+            - np.cos(j1) * np.cos(j4) * np.sin(j6)
+            + np.sin(j1) * np.sin(j2) * np.sin(j4) * np.sin(j6)
+            + np.cos(j4) * np.cos(j6) * np.sin(j1) * np.sin(j2) * np.sin(j5)
+        )
+        r21 = (
+            np.cos(j5) * np.sin(j2) * np.sin(j6)
+            - np.cos(j2) * np.cos(j6) * np.sin(j4)
+            + np.cos(j2) * np.cos(j4) * np.sin(j5) * np.sin(j6)
+        )
         r22 = np.cos(j2) * np.cos(j4) * np.cos(j5) - np.sin(j2) * np.sin(j5)
-        r23 = np.cos(j5) * np.cos(j6) * np.sin(j2) + np.cos(j2) * np.sin(j4) * np.sin(j6) + np.cos(j2) * np.cos(
-            j4) * np.cos(j6) * np.sin(j5)
-        r31 = np.cos(j4) * np.cos(j6) * np.sin(j1) + np.cos(j1) * np.cos(j2) * np.cos(j5) * np.sin(j6) + np.cos(
-            j1) * np.cos(j6) * np.sin(j2) * np.sin(j4) + np.sin(j1) * np.sin(j4) * np.sin(j5) * np.sin(j6) - np.cos(
-            j1) * np.cos(j4) * np.sin(j2) * np.sin(j5) * np.sin(j6)
-        r32 = np.cos(j5) * np.sin(j1) * np.sin(j4) - np.cos(j1) * np.cos(j2) * np.sin(j5) - np.cos(j1) * np.cos(
-            j4) * np.cos(j5) * np.sin(j2)
-        r33 = np.cos(j1) * np.cos(j2) * np.cos(j5) * np.cos(j6) - np.cos(j4) * np.sin(j1) * np.sin(j6) - np.cos(
-            j1) * np.sin(j2) * np.sin(j4) * np.sin(j6) + np.cos(j6) * np.sin(j1) * np.sin(j4) * np.sin(j5) - np.cos(
-            j1) * np.cos(j4) * np.cos(j6) * np.sin(j2) * np.sin(j5)
+        r23 = (
+            np.cos(j5) * np.cos(j6) * np.sin(j2)
+            + np.cos(j2) * np.sin(j4) * np.sin(j6)
+            + np.cos(j2) * np.cos(j4) * np.cos(j6) * np.sin(j5)
+        )
+        r31 = (
+            np.cos(j4) * np.cos(j6) * np.sin(j1)
+            + np.cos(j1) * np.cos(j2) * np.cos(j5) * np.sin(j6)
+            + np.cos(j1) * np.cos(j6) * np.sin(j2) * np.sin(j4)
+            + np.sin(j1) * np.sin(j4) * np.sin(j5) * np.sin(j6)
+            - np.cos(j1) * np.cos(j4) * np.sin(j2) * np.sin(j5) * np.sin(j6)
+        )
+        r32 = (
+            np.cos(j5) * np.sin(j1) * np.sin(j4)
+            - np.cos(j1) * np.cos(j2) * np.sin(j5)
+            - np.cos(j1) * np.cos(j4) * np.cos(j5) * np.sin(j2)
+        )
+        r33 = (
+            np.cos(j1) * np.cos(j2) * np.cos(j5) * np.cos(j6)
+            - np.cos(j4) * np.sin(j1) * np.sin(j6)
+            - np.cos(j1) * np.sin(j2) * np.sin(j4) * np.sin(j6)
+            + np.cos(j6) * np.sin(j1) * np.sin(j4) * np.sin(j5)
+            - np.cos(j1) * np.cos(j4) * np.cos(j6) * np.sin(j2) * np.sin(j5)
+        )
 
         # R06
         # r11 = np.cos(j2) * np.cos(j5) * np.sin(j1) * np.sin(j6) - np.cos(j1) * np.cos(j4) * np.cos(j6) + np.cos(
@@ -436,7 +599,7 @@ class BallDetection():
         return R
 
     def ik_position(self, pos):
-        x = pos[0]      # (m)
+        x = pos[0]  # (m)
         y = pos[1]
         z = pos[2]
 
@@ -446,28 +609,34 @@ class BallDetection():
         # z = -np.cos(q1)*np.cos(q2)*(L2-L1+q3)
 
         # Inverse Kinematics
-        q1 = np.arctan2(x, -z)     # (rad)
-        q2 = np.arctan2(-y, np.sqrt(x ** 2 + z ** 2))  # (rad)
-        q3 = np.sqrt(x ** 2 + y ** 2 + z ** 2) + self.L1 - self.L2  # (m)
+        q1 = np.arctan2(x, -z)  # (rad)
+        q2 = np.arctan2(-y, np.sqrt(x**2 + z**2))  # (rad)
+        q3 = np.sqrt(x**2 + y**2 + z**2) + self.L1 - self.L2  # (m)
         return q1, q2, q3
 
-    def ik_orientation(self, q1,q2,Rb):
-        R03 = np.array([[-np.sin(q1)*np.sin(q2), -np.cos(q1), np.cos(q2)*np.sin(q1)],
-                        [-np.cos(q2), 0, -np.sin(q2)],
-                        [np.cos(q1)*np.sin(q2), -np.sin(q1), -np.cos(q1)*np.cos(q2)]])
+    def ik_orientation(self, q1, q2, Rb):
+        R03 = np.array(
+            [
+                [-np.sin(q1) * np.sin(q2), -np.cos(q1), np.cos(q2) * np.sin(q1)],
+                [-np.cos(q2), 0, -np.sin(q2)],
+                [np.cos(q1) * np.sin(q2), -np.sin(q1), -np.cos(q1) * np.cos(q2)],
+            ]
+        )
         R38 = R03.T.dot(Rb)
-        r12 = R38[0,1]
-        r22 = R38[1,1]
-        r31 = R38[2,0]
-        r32 = R38[2,1]
-        r33 = R38[2,2]
-        q4 = np.arctan2(-r22, -r12)     # (rad)
+        r12 = R38[0, 1]
+        r22 = R38[1, 1]
+        r31 = R38[2, 0]
+        r32 = R38[2, 1]
+        r33 = R38[2, 2]
+        q4 = np.arctan2(-r22, -r12)  # (rad)
         q6 = np.arctan2(-r31, -r33)
-        q5 = np.arctan2(r32, np.sqrt(r31**2+r33**2))
-        return q4,q5,q6
+        q5 = np.arctan2(r32, np.sqrt(r31**2 + r33**2))
+        return q4, q5, q6
+
 
 if __name__ == "__main__":
     from FLSpegtransfer.vision.ZividCapture import ZividCapture
+
     BD = BallDetection()
     zivid = ZividCapture()
     while True:
@@ -482,32 +651,32 @@ if __name__ == "__main__":
             img_color = BD.overlay_balls(img_color, pbs)
 
             # Find tool position, joint angles, and overlay
-            if pbs[0]==[] or pbs[1]==[]:
+            if pbs[0] == [] or pbs[1] == []:
                 pass
             else:
                 # Find tool position, joint angles, and overlay
-                pt = BD.find_tool_position(pbs[0], pbs[1])    # tool position of pitch axis
+                pt = BD.find_tool_position(pbs[0], pbs[1])  # tool position of pitch axis
                 pt = np.array(pt) * 0.001  # (m)
                 pt = BD.Rrc.dot(pt) + BD.trc
                 q1, q2, q3 = BD.ik_position(pt)
                 # print(q1*180/np.pi, q2*180/np.pi, q3)
-                img_color = BD.overlay_tool_position(img_color, [q1,q2,q3], (0,255,0))
+                img_color = BD.overlay_tool_position(img_color, [q1, q2, q3], (0, 255, 0))
 
                 # Find tool orientation, joint angles, and overlay
                 count_pbs = [pbs[2], pbs[3], pbs[4], pbs[5]]
                 if count_pbs.count([]) >= 2:
                     pass
                 else:
-                    Rm = BD.find_tool_orientation(pbs[2],pbs[3],pbs[4],pbs[5])    # orientation of the marker
-                    q4,q5,q6 = BD.ik_orientation(q1,q2,Rm)
+                    Rm = BD.find_tool_orientation(pbs[2], pbs[3], pbs[4], pbs[5])  # orientation of the marker
+                    q4, q5, q6 = BD.ik_orientation(q1, q2, Rm)
                     # print(q4*180/np.pi,q5*180/np.pi,q6*180/np.pi)
-                    print(q5*180/np.pi)
-                    img_color = BD.overlay_tool(img_color, [q1, q2, q3, q4, q5, q6], (0,255,0))
+                    print(q5 * 180 / np.pi)
+                    img_color = BD.overlay_tool(img_color, [q1, q2, q3, q4, q5, q6], (0, 255, 0))
 
             cv2.imwrite("ball_detected.png", img_color)
             cv2.imshow("images", img_color)
             key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
+            if key == ord("q"):
                 cv2.destroyAllWindows()
                 break
         finally:

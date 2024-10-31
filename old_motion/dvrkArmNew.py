@@ -1,20 +1,79 @@
-import numpy as np
-import threading
-from geometry_msgs.msg import Pose, PoseStamped
-from sensor_msgs.msg import JointState
+#!/usr/bin/env python
+
 from std_msgs.msg import Bool
 from std_msgs.msg import Float64
-import dvrk.utils.CmnUtil as U
-import dvrk.motion.dvrkVariables as dvrkVar
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import Pose, PoseStamped
 from dvrk.motion.dvrkKinematics import dvrkKinematics
+import dvrk.motion.dvrkVariables as dvrkVar
+import dvrk.utils.CmnUtil as U
+import sys
 import time
 import rospy
+import torch
+import pickle
+import threading
+import numpy as np
+
+sys.path.append("/home/davinci/dvrkCalibration/experiment/3_training/modeling")
+from models import CalibrationModel, CalibrationLSTM
 
 
 class dvrkArm(object):
     """Simple arm API wrapping around ROS messages"""
 
-    def __init__(self, arm_name, ros_namespace="/dvrk"):
+    def __init__(self, arm_name, ros_namespace="/dvrk", use_rnn=True, verbose=False):
+        self.use_rnn_ = use_rnn
+
+        if verbose:
+            print("Prime DVRK Arm")
+            if self.use_rnn_:
+                print("Using RNN")
+
+        forward_model_filename = ""
+        inverse_model_filename = ""
+        config_filename = ""
+        self.forward_rnn_model_ = None
+        self.inverse_rnn_model_ = None
+        if self.use_rnn_:
+            if arm_name[4] == "1":
+                forward_model_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm1_model/model_forward.out"
+                )
+                inverse_model_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm1_model/model_inverse.out"
+                )
+                config_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm1_model/config.pkl"
+                )
+            elif arm_name[4] == "2":
+                forward_model_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm2_model/model_forward.out"
+                )
+                inverse_model_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm2_model/model_inverse.out"
+                )
+                config_filename = (
+                    "/home/davinci/dvrkCalibration/experiment/3_training/modeling/log/psm2_model/config.pkl"
+                )
+            else:
+                print("Please pick /PSM1 or /PSM2")
+                exit()
+
+            with open(config_filename, "rb") as f:
+                config = pickle.load(f)
+            if config.rnn:
+                self.forward_rnn_model_ = CalibrationLSTM(config.input_dim, config.output_dim)
+                self.inverse_rnn_model_ = CalibrationLSTM(config.input_dim, config.output_dim)
+            else:
+                self.forward_rnn_model_ = CalibrationModel(config.input_dim, config.output_dim)
+                self.inverse_rnn_model_ = CalibrationModel(config.input_dim, config.output_dim)
+            self.inverse_rnn_model_.load_state_dict(torch.load(inverse_model_filename))
+            self.inverse_rnn_model_.eval()
+            self.forward_rnn_model_.load_state_dict(torch.load(forward_model_filename))
+            self.forward_rnn_model_.eval()
+            self.joint_history_size_ = config.history
+            self.joint_history_ = []
         # continuous publish from dvrk_bridge
         # actual(current) values
         self.__act_joint = []
@@ -29,7 +88,6 @@ class dvrkArm(object):
         self.__get_joint_event = threading.Event()
         self.__get_jaw_event = threading.Event()
         self.__get_motor_current_event = threading.Event()
-
         self.__sub_list = []
         self.__pub_list = []
 
@@ -59,7 +117,6 @@ class dvrkArm(object):
         self.__set_acceleration_ratio_pub = rospy.Publisher(
             self.__full_ros_namespace + "/set_joint_acceleration_ratio", Float64, latch=True, queue_size=1
         )
-
         self.__pub_list = [
             self.__set_position_joint_pub,
             self.__set_position_goal_joint_pub,
@@ -70,7 +127,6 @@ class dvrkArm(object):
             self.__set_velocity_ratio_pub,
             self.__set_acceleration_ratio_pub,
         ]
-
         self.__sub_list = [
             rospy.Subscriber(self.__full_ros_namespace + "/goal_reached", Bool, self.__goal_reached_cb),
             rospy.Subscriber(
@@ -85,14 +141,13 @@ class dvrkArm(object):
                 self.__motor_current_measured_cb,
             ),
         ]
-
         # create node
         if not rospy.get_node_uri():
             rospy.init_node("dvrkArm_node", anonymous=True, log_level=rospy.WARN)
         else:
             rospy.logdebug(rospy.get_caller_id() + " -> ROS already initialized")
-
-        print("dvrk", arm_name, "initialized")
+        if verbose:
+            print("dvrk", arm_name, "initialized")
         # wait until these are not empty
         # self.__act_joint = self.get_current_joint(wait_callback=True)
         # self.__act_jaw = self.get_current_jaw(wait_callback=True)
@@ -126,6 +181,21 @@ class dvrkArm(object):
 
     def get_current_pose(self, wait_callback=True):
         joint = self.get_current_joint(wait_callback=wait_callback)
+        new_joints = np.copy(joint)
+        if self.use_rnn_:
+            if len(self.joint_history_) == self.joint_history_size_:
+                joint_history = np.array(self.joint_history_)
+                desired_joint_cmd = np.array(joint[3:])
+                model_input_np = np.vstack((joint_history, desired_joint_cmd[np.newaxis, :]))
+                model_input_np = model_input_np[np.newaxis, :, :]
+                model_input = torch.FloatTensor(model_input_np)
+                self.forward_rnn_model_.eval()
+                model_output = self.forward_rnn_model_(model_input)
+                model_output_np = model_output.detach().numpy()[0]
+                new_joints[3] = model_output_np[0]
+                new_joints[4] = model_output_np[1]
+                new_joints[5] = model_output_np[2]
+                joint = new_joints
         return dvrkKinematics.joint_to_pose(joint)
 
     def get_current_joint(self, wait_callback=True):
@@ -180,6 +250,41 @@ class dvrkArm(object):
         assert not np.isnan(np.sum(pos))
         assert not np.isnan(np.sum(rot))
         joint = np.squeeze(dvrkKinematics.pose_to_joint(pos, rot))  # SAM: sometimes need to squeeze to avoid ROS error
+        new_joints = np.copy(joint)
+        if self.use_rnn_:
+            if len(self.joint_history_) == self.joint_history_size_:
+                joint_history = np.array(self.joint_history_)
+                actual_joint_cmd = joint[3:]
+                model_input_np = np.vstack((joint_history, actual_joint_cmd[np.newaxis, :]))
+                model_input_np = model_input_np[np.newaxis, :, :]
+                model_input = torch.FloatTensor(model_input_np)
+                self.inverse_rnn_model_.eval()
+                model_output = self.inverse_rnn_model_(model_input)
+                model_output_np = model_output.detach().numpy()[0]
+                new_joints[3] = model_output_np[0]
+                new_joints[4] = model_output_np[1]
+                new_joints[5] = model_output_np[2]
+                self.joint_history_.pop(0)
+                self.joint_history_.append(joint[3:])
+                joint = new_joints
+            else:
+                self.joint_history_.append(joint[3:])
+        return self.set_joint(joint, wait_callback=wait_callback)
+
+    def set_pose_static_wrist(self, pos, rot, wait_callback=True):
+        assert not np.isnan(np.sum(pos))
+        assert not np.isnan(np.sum(rot))
+        joint = np.squeeze(dvrkKinematics.pose_to_joint(pos, rot))  # SAM: sometimes need to squeeze to avoid ROS error
+        new_joints = np.copy(joint)
+        if self.use_rnn_:
+            if len(self.joint_history_) == self.joint_history_size_:
+                current_wrist_joints = self.get_current_joint()[3:]
+                new_joints[3:] = current_wrist_joints
+                self.joint_history_.pop(0)
+                self.joint_history_.append(current_wrist_joints)
+                joint = new_joints
+            else:
+                self.joint_history_.append(current_wrist_joints)
         return self.set_joint(joint, wait_callback=wait_callback)
 
     def set_pose_direct(self, pos, rot):
@@ -539,7 +644,6 @@ class dvrkArm(object):
             # find maximum values
             vel_max = np.max(abs(q_vel), axis=0)
             acc_max = np.max(abs(q_acc), axis=0)
-
             if np.any(vel_max > vel_limit) or np.any(acc_max > acc_limit):
                 if tf_init == tf:
                     tf_init += 0.5
