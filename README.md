@@ -39,6 +39,21 @@ source activate_calibration.bash
 python dvrkShallowCalibration.py
 ```
 
+### Shallow Calibration Verification
+To verify that the shallow calibration actually worked, there are 2 things you can do. First, you can quantify the error with the verification script as explained here
+```
+cd ~/dvrkCalibration
+source activate_calibration.bash
+python cam_to_robot_verification.py
+```
+
+The other thing you can do is to check using the dvrk_2024 repo with the following. When you run this, you should see a green dot on the gripper tip (check the Zivid, the allied vision one won't work until you do the calibration specified later). As you free drive the PSM around, the gripper should follow the tip. This will work for moving q1,q2,q3 as they are not significantly affected by the cabling effect.
+```
+cd ~/automated_suturing
+source activate_suturing.bash
+cd ~/dvrk_2024/dvrk/vision
+python calibration/calibration_robot_to_camera.py
+```
 ## Training
 ```
 conda activate dvrk_calibration_env
