@@ -21,3 +21,4 @@ lab_meeting/*
 debugging/*
 data/*
 experiment/3_training/modeling/log/*
+experiment/0_trajectory_extraction/model_outputs/*

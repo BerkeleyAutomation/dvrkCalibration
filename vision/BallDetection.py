@@ -9,6 +9,7 @@ import open3d as o3d
 import dvrk.utils.CmnUtil as U
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, least_squares
+from collections import Counter
 
 
 class BallDetection:
@@ -232,13 +233,12 @@ class BallDetection:
         indices = np.argwhere(infilled == 255)
         points_ball = np.array([img_point[p[0], p[1]] for p in indices])
         points_ball_no_nan = points_ball[~np.isnan(points_ball).any(axis=1)]
-        xc, yc, zc, rc = self.fit_circle_3d(
-            points_ball_no_nan[:, 0], points_ball_no_nan[:, 1], points_ball_no_nan[:, 2]
-        )
 
         opt_xc, opt_yc, opt_zc, opt_rc = self.optimize_circle_3d(
             points_ball_no_nan[:, 0], points_ball_no_nan[:, 1], points_ball_no_nan[:, 2], potential_radii
         )
+        if opt_xc is None or opt_yc is None or opt_zc is None or opt_rc is None:
+            return None
 
         return [opt_xc, opt_yc, opt_zc, opt_rc]
 
@@ -263,6 +263,9 @@ class BallDetection:
             ball1 = self.fit_ball(
                 infilled=infilled1, img_point=img_point, potential_radii=[big_red_radius, small_red_radius]
             )
+            if ball0 is None or ball1 is None:
+                print("Couldn't find both balls")
+                return pb
             small_ball = None
             big_ball = None
             if abs(ball0[3] - big_red_radius) < abs(ball0[3] - small_red_radius):
@@ -283,7 +286,7 @@ class BallDetection:
         return pb
 
     def find_balls(self, img_color, img_depth, img_point):
-
+        # Also crop image to be focused on the gripper
         red_masked = self.mask_image(img_color, img_depth, img_point, "red")
         cv2.imwrite("/home/davinci/dvrkCalibration/debugging/masked_red.png", red_masked)
         green_masked = self.mask_image(img_color, img_depth, img_point, "green")
@@ -308,8 +311,12 @@ class BallDetection:
             lambda: yellow_masked,
         ]
         radius = [12.0, 10.0, 8.0, 8.0, 8.0, 8.0]  # (mm)
+        spacer_size = 31.0
+        full_length_of_each_side_in_fiducial_cross = 62.0
+        fiducial_cross_tolerance = 5.0
+        potential_radii = radius[:3]
         pb = []
-        print("Nunber of masked images: " + str(len(masked_img)))
+        print("Number of masked images: " + str(len(masked_img)))
         for i in range(len(masked_img)):
             # Find contours in the mask and initialize the current (x, y) center of the ball
             cnts, _ = cv2.findContours(masked_img[i](), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -341,15 +348,76 @@ class BallDetection:
                 # cv2.waitKey(0)
 
                 # Linear regression to fit the circle into the point cloud
-                xc, yc, zc, rc = self.fit_circle_3d(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2])
+                # xc, yc, zc, rc = self.fit_circle_3d(points_ball[:, 0], points_ball[:, 1], points_ball[:, 2])
+                xc, yc, zc, rc = self.optimize_circle_3d(
+                    points_ball[:, 0], points_ball[:, 1], points_ball[:, 2], potential_radii
+                )
+                if xc is None or yc is None or zc is None or rc is None:
+                    pb.append([])
                 # self.plot_sphere(np.array([xc,yc,zc]),rc,points_ball)
-                if radius[i] - 2 < rc < radius[i] + 2:
+                elif radius[i] - 0.5 < rc < radius[i] + 0.5:
                     pb.append([xc, yc, zc, rc])
                 else:
                     pb.append([])
 
                 # Masking the detected region
                 red_masked = cv2.bitwise_and(masked_img[i](), masked_img[i](), mask=infilled_inv)
+        shallow_ball_min = spacer_size + (potential_radii[0] / 2) + (potential_radii[1] / 2)
+        shallow_ball_max = spacer_size + potential_radii[0] + potential_radii[1]
+        if len(pb[0]) == 0 or len(pb[1]) == 0:
+            return pb
+        # Check that the ball distance is within the appropriate range, otherwise say that it is empty
+        two_red_ball_distance = np.linalg.norm(np.array(pb[0][:3]) - np.array(pb[1][:3]))
+        if not (shallow_ball_min <= two_red_ball_distance <= shallow_ball_max):
+            pb = []
+            return pb
+        # Now check the small balls are all appropriate distances from each other
+        # Define the indices for small balls
+        small_ball_indices = [2, 3, 4, 5]  # indices of small_red, small_green, small_blue, small_yellow
+
+        # Find which small balls have values (non-zero radius)
+        available_small_balls = []
+        available_small_balls_indices = []
+        for index in small_ball_indices:
+            if len(pb) == 0:
+                import pdb
+
+                pdb.set_trace()
+            if len(pb[index]) > 0:  # Check if radius is greater than 0
+                available_small_balls.append(pb[index])
+                available_small_balls_indices.append(index)
+        num_small_balls = len(available_small_balls_indices)
+        # Pairs and corresponding distance ranges
+        pairs_a = [(2, 4), (3, 5)]
+        distance_a = full_length_of_each_side_in_fiducial_cross + radius[2]
+        min_a = distance_a - fiducial_cross_tolerance
+        max_a = distance_a + fiducial_cross_tolerance
+        pairs_b = [(2, 3), (2, 5), (3, 4), (4, 5)]
+        distance_b = np.sqrt(2) * (full_length_of_each_side_in_fiducial_cross + radius[2]) / 2
+        min_b = distance_b - fiducial_cross_tolerance
+        max_b = distance_b + fiducial_cross_tolerance
+
+        # Check if each pair is within the required distance range
+        incorrect_pairs = []
+        for i, j in pairs_a:
+            if i in available_small_balls_indices and j in available_small_balls_indices:
+                distance = np.linalg.norm(np.array(pb[i][:3]) - np.array(pb[j][:3]))
+                if not (min_a <= distance <= max_a):
+                    incorrect_pairs.append((i, j, distance))
+        for i, j in pairs_b:
+            if i in available_small_balls_indices and j in available_small_balls_indices:
+                distance = np.linalg.norm(np.array(pb[i][:3]) - np.array(pb[j][:3]))
+                if not (min_b <= distance <= max_b):
+                    incorrect_pairs.append((i, j, distance))
+        if len(incorrect_pairs) == 0:
+            return pb
+        ball_counts = Counter()
+        for i, j, _ in incorrect_pairs:
+            ball_counts[i] += 1
+            ball_counts[j] += 1
+        for small_ball_index in small_ball_indices:
+            if ball_counts[small_ball_index] >= num_small_balls / 2:
+                pb[small_ball_index] = []
         return pb  # (mm)
 
     def fit_circle_3d(self, x, y, z, w=[]):
@@ -391,19 +459,13 @@ class BallDetection:
             ),
         )
         if not least_squares_result.success:
-            import pdb
+            return None, None, None, None
 
-            pdb.set_trace()
-        radius_min = None
-        radius_max = None
         # If it is closer to the size of the bigger ball, optimize for that
         # Otherwise optimize it to be closer to the smaller ball
-        if abs(potential_radii[0] - least_squares_result.x[3]) < abs(potential_radii[1] - least_squares_result.x[3]):
-            radius_min = potential_radii[0] - 0.5
-            radius_max = potential_radii[0] + 0.5
-        else:
-            radius_min = potential_radii[1] - 0.5
-            radius_max = potential_radii[1] + 0.5
+        closest_radius = min(potential_radii, key=lambda x: abs(x - least_squares_result.x[3]))
+        radius_min = closest_radius - 0.5
+        radius_max = closest_radius + 0.5
 
         def objective(params):
             x_c, y_c, z_c, r = params
@@ -415,9 +477,7 @@ class BallDetection:
         bounds = [(None, None), (None, None), (None, None), (radius_min, radius_max)]
         result_powell = minimize(objective, initial_guess, bounds=bounds, method="Powell")
         if not result_powell.success:
-            import pdb
-
-            pdb.set_trace()
+            return None, None, None, None
         return result_powell.x
 
     # Get tool position of the pitch axis from two ball positions w.r.t. camera base coordinate

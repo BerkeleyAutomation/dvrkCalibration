@@ -12,8 +12,8 @@ from vision_new.cameras.Camera import Camera
 from vision_new import vision_constants as cst
 from vision.ZividCaptureNew import ZividCapture
 from vision.BallDetection import BallDetection
-from old_motion.dvrkMotionBridgeP import dvrkMotionBridgeP
-from old_motion.dvrkArmNew import dvrkArm
+from dvrk.motion.dvrkArm import dvrkArm
+from dvrk.motion.dvrkTypes import dvrkTypes
 import utils.CmnUtil as U
 import os
 
@@ -34,26 +34,38 @@ class dvrkCalibration:
             print("Please select 1 or 2")
             exit()
         root_path = os.path.dirname(os.path.abspath(__file__))
-        self.calibration_output_path = os.path.join(root_path, "experiment/0_trajectory_extraction/calibration_outputs")
+        self.calibration_output_path = os.path.join(
+            root_path, "experiment/0_trajectory_extraction/shallow_and_deep_calibration_outputs"
+        )
         self.robot_to_cam_ = np.eye(4)
         if know_transform:
-            import pdb
-
-            pdb.set_trace()
             if self.psm_number == "1":
                 psm_string = "/PSM1"
-                self.robot_to_cam_ = np.load(
-                    "/home/davinci/automated_suturing/surgical_suturing_catkin_ws/src/calibration_config/cam_to_robot/Trc_inclined_PSM1.npy"
-                )
+                self.robot_to_cam_ = np.load(os.path.join(self.calibration_output_path, "psm1_robot_to_zivid.npy"))
             elif self.psm_number == "2":
+                import pdb
+
+                pdb.set_trace()
                 psm_string = "/PSM2"
                 self.robot_to_cam_ = np.load("/home/davinci/dvrkCalibration/data/zivid_to_psm2.npy")
             else:
                 print("Please select 1 or 2")
                 exit()
+            self.dvrk_type_input = input(
+                "Which PSM driver type are you calibrating. Large SutureCut Needle Driver (1) or Large Needle Driver (2)"
+            )
+            self.dvrk_type = None
+
+            if self.dvrk_type_input == "1":
+                self.dvrk_type = dvrkTypes.LRG_SUTURECUT_NEEDLE_DRIVER
+            elif self.dvrk_type_input == "2":
+                self.dvrk_type = dvrkTypes.LARGE_NEEDLE_DRIVER
+            else:
+                print("Please select 1 or 2")
+                exit()
 
         # objects
-        self.dvrk = dvrkArm(psm_string, use_rnn=False)
+        self.dvrk = dvrkArm(psm_string, dvrk_type=self.dvrk_type, use_rnn=False)
         self.zivid = Camera(cst.ZIVID, zivid_capture_type="3d")
         self.BD = BallDetection(self.robot_to_cam_)
 
@@ -181,7 +193,7 @@ class dvrkCalibration:
         self.dvrk.set_pose(*initial_pose)
         self.dvrk.set_jaw(JAW_OPEN_ANGLE)
         time.sleep(0.1)
-        input("Place plus sign fiducial with yellow ball forward")
+        input("Place plus sign fiducial with green ball forward")
         self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
         time.sleep(1)
 
@@ -212,20 +224,22 @@ class dvrkCalibration:
             # img_color = cv2.cvtColor(img_color, cv2.COLOR_RGB2BGR)
             img_color_org = np.copy(img_color)
             # Find balls
-
             pbs = self.BD.find_balls(img_color_org, img_depth, img_point)
             img_color = self.BD.overlay_balls(img_color, pbs, intrinsics_matrix, distortion_coefficients)
-
             # Find tool position, joint angles, and overlay
-            if pbs[0] == [] or pbs[1] == []:
+            if len(pbs) < 2 or pbs[0] == [] or pbs[1] == []:
+
                 qa1 = 0.0
                 qa2 = 0.0
                 qa3 = 0.0
                 qa4 = 0.0
                 qa5 = 0.0
                 qa6 = 0.0
+                print("Couldn't find joints")
             else:
                 # Find tool position, joint angles, and overlay
+                # NOTE: This tool position is not actually the tool tip as done in the shallow calibration
+                # The reason it is like this is because the fk/ik is setup to work with this modified tool position
                 pt = self.BD.find_tool_position(pbs[0], pbs[1])  # tool position of pitch axis
                 pt = np.array(pt) * 0.001  # (m)
 
@@ -252,6 +266,9 @@ class dvrkCalibration:
             # Append data pairs
             if transform == "known":
                 # joint angles
+                if qa4 == qa5 == qa6 == 0.0:
+                    print("Couldn't find last 3 joints")
+                    qa1 = qa2 = qa3 = 0.0
                 q_des.append([qd1, qd2, qd3, qd4, qd5, qd6])
                 q_act.append([qa1, qa2, qa3, qa4, qa5, qa6])
                 time_stamp.append(time.time() - time_st)
@@ -259,29 +276,25 @@ class dvrkCalibration:
                 print("t_stamp: ", time.time() - time_st)
                 print("q_des: ", [qd1, qd2, qd3, qd4, qd5, qd6])
                 print("q_act: ", [qa1, qa2, qa3, qa4, qa5, qa6])
+
                 print(" ")
-            elif transform == "unknown":
-                pt = ee_point
-                pos_des_temp = self.dvrk.get_current_pose()
-                pos_des.append(pos_des_temp)
-                pos_act.append(
-                    pt.reshape(
-                        -1,
-                    )
-                )
-                print("index: ", len(pos_des), "/", len(j1))
-                print("pos_des: ", pos_des_temp)
-                print("pos_act: ", pt)
-                print(" ")
+                cv2.imshow("images, Spacebar to continue", img_color)
+                cv2.waitKey(1) & 0xFF
+                # while True:
+                #     key = cv2.waitKey(0)
+                #     if key == 32:
+                #         break
             # import pdb
             # pdb.set_trace()
             # self.dvrk.set_joint(joint=[qd1, qd2, qd3, qd4, qd5, qd6])
             # self.dvrk.set_joint(joint=[qa1, qa2, qa3, qa4, qa5, qa6])
             # Visualize
             i += 1
-            cv2.imshow("images", img_color)
-            cv2.waitKey(1) & 0xFF
+
             # cv2.waitKey(0)
+
+        np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_des_raw"), q_des)
+        np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_act_raw"), q_act)
         # finally:
         #     import pdb
 
@@ -303,13 +316,5 @@ class dvrkCalibration:
 
 
 if __name__ == "__main__":
-    transform_input = input("Do you want cam_to_robot transform (1) or RNN network (2)?")
-    if transform_input == "1":
-        cal = dvrkCalibration(know_transform=False)
-        cal.exp0_get_transform()
-    elif transform_input == "2":
-        cal = dvrkCalibration(know_transform=True)
-        cal.exp1_move_all_joints()
-    else:
-        print("Please pick 1 or 2. Usually, pick 1 and then pick 2")
-        exit()
+    cal = dvrkCalibration(know_transform=True)
+    cal.exp1_move_all_joints()

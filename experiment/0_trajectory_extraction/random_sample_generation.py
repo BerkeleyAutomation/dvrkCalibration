@@ -116,7 +116,7 @@ def random_sampling(sample_number, psm_number):
     else:
         print("Please select PSM1 or 2")
         exit()
-    q4_range = np.array([-225, 225]) * np.pi / 180.0
+    q4_range = np.array([-90, 90]) * np.pi / 180.0
     q5_range = np.array([-90, 90]) * np.pi / 180.0
     q6_range = np.array([-90, 90]) * np.pi / 180.0
 
@@ -181,13 +181,15 @@ if __name__ == "__main__":
     else:
         print("Press either y or n")
         exit()
-    q_target, pos_target = random_sampling(1800, psm_number)
+    q_target, pos_target = random_sampling(
+        2000, psm_number
+    )  # Even tho the paper said 1800, we don't detect like 10-15% of them so we up it to 2k so we can get 1800 good data points
     print(np.shape(q_target))
     print(np.shape(pos_target))
     plot_position(pos_target)
     plot_joint(q_target)
-    if not os.path.exists("calibration_outputs"):
-        os.makedirs("calibration_outputs")
-    np.save("calibration_outputs/prime_psm" + psm_number + "_random_sampled", q_target)
+    if not os.path.exists("shallow_and_deep_calibration_outputs"):
+        os.makedirs("shallow_and_deep_calibration_outputs")
+    np.save("shallow_and_deep_calibration_outputs/prime_psm" + psm_number + "_random_sampled", q_target)
     # I'm not saving to true filepath because I don't want to overwrite anything while I'm still testing
     # But eventually save it to this folder: /home/davinci/dvrkCalibration/experiment/0_trajectory_extraction

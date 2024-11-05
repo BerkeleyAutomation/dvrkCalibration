@@ -13,6 +13,14 @@ pip install open3d==0.18.0
 pip install dotmap==1.3.30
 ```
 
+## Repo Structure
+This calibration was setup to work with the autonomous suturing project (STITCH) and our updated dvrk controller/vision library. It should be structured like this
+```bash
+.
+├── automated_suturing
+├── dvrk_2024
+├── dvrkCalibration
+```
 ## Calibration Procedure
 
 ## Setup Fiducials
@@ -54,6 +62,33 @@ source activate_suturing.bash
 cd ~/dvrk_2024/dvrk/vision
 python calibration/calibration_robot_to_camera.py
 ```
+
+### Allied Vision Camera Calibration
+This is technically in an adjacent repo, but I wanted to put all the calibration instructions in the ssame spot. For the Allied Vision stereo camera, we capture checkerboard images, calculate intrinsics, and stereo calibrate all in one file as explained here. To verify the quality of the stereo calibration, the rectified checkerboard image pairs will show up epipolar lines and they should mainly be horizontal (there will be some funky images, but most of them should be horizontal)
+```
+cd ~/automated_suturing
+source activate_suturing.bash
+cd ~/dvrk_2024/dvrk/vision
+python calibration/prime_allied_vision_checkerboard_calibration.py
+```
+
+### Zivid to Allied Vision Camera Calibration
+Because we have a higher FOV and more accurate depth readings from the Zivid compared to the AlliedVision stereo cameras. To calibrate the stereo pair to the Zivid, we use an Aruco marker and place it in random spots in the workspace.
+```
+cd ~/automated_suturing
+source activate_suturing.bash
+cd ~/dvrk_2024/dvrk/vision
+python calibration/prime_av_stereo_to_zivid_calibration.py
+```
+
+### Deep Calibration
+After the Random Sample Generation, place the fiducial marker in the gripper of the PSM you want to calibrate, and it will go through the data collection process and save everything accordingly so it can then subsequently train.
+```
+cd ~/dvrkCalibration
+source activate_calibration.bash
+python dvrkCalibration.py
+```
+
 ## Training
 ```
 conda activate dvrk_calibration_env
