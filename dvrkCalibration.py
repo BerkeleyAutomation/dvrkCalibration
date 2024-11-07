@@ -71,7 +71,18 @@ class dvrkCalibration:
 
         # Load trajectory
         # filename = root + 'experiment/0_trajectory_extraction/verification_traj_random_sampling_10000.npy'
-        filename = os.path.join(self.calibration_output_path, "prime_psm" + self.psm_number + "_random_sampled.npy")
+        data_type_input = input("Which data are you using. Pick random (1) or suture pipeline (2) ")
+        self.data_type_ = None
+        if data_type_input == "1":
+            self.data_type_ = "random"
+        elif data_type_input == "2":
+            self.data_type_ = "suture_pipeline"
+        else:
+            print("Please select 1 or 2")
+            exit()
+        filename = os.path.join(
+            self.calibration_output_path, "prime_psm" + self.psm_number + "_" + self.data_type_ + "_sampled.npy"
+        )
         self.joint_traj = self.load_trajectory(filename)
 
     def load_trajectory(self, filename):
@@ -290,11 +301,16 @@ class dvrkCalibration:
             # self.dvrk.set_joint(joint=[qa1, qa2, qa3, qa4, qa5, qa6])
             # Visualize
             i += 1
-
             # cv2.waitKey(0)
 
-        np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_des_raw"), q_des)
-        np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_act_raw"), q_act)
+        np.save(
+            os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_des_raw_" + self.data_type_),
+            q_des,
+        )
+        np.save(
+            os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_act_raw_" + self.data_type_),
+            q_act,
+        )
         # finally:
         #     import pdb
 

@@ -30,54 +30,93 @@ def load_data(data_dir):
     if psm_number != "1" and psm_number != "2":
         print("Please select 1 or 2")
         exit()
-    joint_actual = np.load(osp.join(data_dir, "psm" + psm_number + "_q_act_raw.npy"))
+    data_type_input = input("Which data are you using. Pick random (1) or suture pipeline (2) or both (3)")
+    data_type = None
+    if data_type_input == "1":
+        data_type = "random"
+    elif data_type_input == "2":
+        data_type = "suture_pipeline"
+    elif data_type_input == "3":
+        random_joint_actual = np.load(osp.join(data_dir, "psm" + psm_number + "_q_act_raw_random.npy"))
+        random_joint_desired = np.load(osp.join(data_dir, "psm" + psm_number + "_q_des_raw_random.npy"))
+        suture_pipeline_joint_actual = np.load(
+            osp.join(data_dir, "psm" + psm_number + "_q_act_raw_suture_pipeline.npy")
+        )
+        suture_pipeline_joint_desired = np.load(
+            osp.join(data_dir, "psm" + psm_number + "_q_des_raw_suture_pipeline.npy")
+        )
+        return [
+            {"joint_actual": random_joint_actual, "joint_desired": random_joint_desired},
+            {"joint_actual": suture_pipeline_joint_actual, "joint_desired": suture_pipeline_joint_desired},
+        ], psm_number
+    else:
+        print("Please select 1 or 2 or 3")
+        exit()
+    joint_actual = np.load(osp.join(data_dir, "psm" + psm_number + "_q_act_raw_" + data_type + ".npy"))
 
     # TODO: Change joint_desired to the measured data
-    joint_desired = np.load(osp.join(data_dir, "psm" + psm_number + "_q_des_raw.npy"))
-    import pdb
+    joint_desired = np.load(osp.join(data_dir, "psm" + psm_number + "_q_des_raw_" + data_type + ".npy"))
 
-    pdb.set_trace()
     # position_actual = np.load(osp.join(data_dir, "position_act.npy"))
     # position_desired = np.load(osp.join(data_dir, "position_des.npy"))
     # quaternion_actual = np.load(osp.join(data_dir, "quaternion_act.npy"))
     # quaternion_desired = np.load(osp.join(data_dir, "quaternion_des.npy"))
 
-    return {
-        "joint_actual": joint_actual,
-        # "position_actual": position_actual,
-        # "quaternion_actual": quaternion_actual,
-        "joint_desired": joint_desired,
-        # "position_desired": position_desired,
-        # "quaternion_desired": quaternion_desired
-    }, psm_number
+    return [
+        {
+            "joint_actual": joint_actual,
+            # "position_actual": position_actual,
+            # "quaternion_actual": quaternion_actual,
+            "joint_desired": joint_desired,
+            # "position_desired": position_desired,
+            # "quaternion_desired": quaternion_desired
+        }
+    ], psm_number
 
 
 def format_data(H, fname, for_dvrk, use_actual_inputs=False, rnn=False):
     """
     Formats histories from oldest to newest.
     """
-    data, psm_number = load_data(fname)
-    if for_dvrk:
-        desired = data["joint_desired"][:, 3:]
-        actual = data["joint_actual"][:, 3:]
-    else:
-        desired = data["joint_desired"]
-        actual = data["joint_actual"]
-    histories = []
-
-    for i in range(H):
-        if use_actual_inputs:
-            histories.append(actual[i : len(desired) - H + i])
+    total_data, psm_number = load_data(fname)
+    total_desired = None
+    total_actual = None
+    total_histories = None
+    total_cmds = None
+    total_phys = None
+    for data in total_data:
+        if for_dvrk:
+            desired = data["joint_desired"][:, 3:]
+            actual = data["joint_actual"][:, 3:]
         else:
-            histories.append(desired[i : len(desired) - H + i])
-    cmds = desired[H:]
-    phys = actual[H:]
-    if rnn:
-        histories = np.stack(histories, axis=1)
-    else:
-        histories = np.hstack(histories)
+            desired = data["joint_desired"]
+            actual = data["joint_actual"]
+        histories = []
 
-    return histories, cmds, phys, psm_number
+        for i in range(H):
+            if use_actual_inputs:
+                histories.append(actual[i : len(desired) - H + i])
+            else:
+                histories.append(desired[i : len(desired) - H + i])
+        cmds = desired[H:]
+        phys = actual[H:]
+        if rnn:
+            histories = np.stack(histories, axis=1)
+        else:
+            histories = np.hstack(histories)
+        if total_histories is None:
+            total_histories = np.copy(histories)
+        else:
+            total_histories = np.concatenate((total_histories, histories), axis=0)
+        if total_cmds is None:
+            total_cmds = np.copy(cmds)
+        else:
+            total_cmds = np.concatenate((total_cmds, cmds), axis=0)
+        if total_phys is None:
+            total_phys = np.copy(phys)
+        else:
+            total_phys = np.concatenate((total_phys, phys), axis=0)
+    return total_histories, total_cmds, total_phys, psm_number
 
 
 def compute_standard_loss(model, batch_histories, batch_cmds, batch_phys, is_forward, is_rnn, device):
@@ -143,6 +182,13 @@ class Experiment:
         histories, cmds, phys, psm_number = format_data(
             config.history, config.training_data, config.for_dvrk, config.actual_inputs, config.rnn
         )
+        # Remove 0's/Bad data from the dataset
+        zero_indices = np.all(phys == np.array([0.0, 0.0, 0.0]), axis=1)
+        indices_to_remove = np.where(zero_indices)[0]
+        histories = np.delete(histories, indices_to_remove, axis=0)
+        cmds = np.delete(cmds, indices_to_remove, axis=0)
+        phys = np.delete(phys, indices_to_remove, axis=0)
+
         self.validation_size = int(config.validation_prob * len(histories))
         self.training_histories = histories[self.validation_size :]
         self.training_cmds = cmds[self.validation_size :]

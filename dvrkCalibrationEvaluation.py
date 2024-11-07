@@ -62,9 +62,9 @@ def single_psm_warmup(psm_number, psm):
     if psm_number == "1":
         psm_warmup_points = [
             np.array([[0.01], [0.0], [-0.12], [1]]),
-            np.array([[0.01], [0.05], [-0.14], [1]]),
-            np.array([[0.05], [0.0], [-0.12], [1]]),
-            np.array([[0.05], [0.05], [-0.14], [1]]),
+            np.array([[0.01], [0.05], [-0.135], [1]]),
+            np.array([[0.05], [0.0], [-0.11], [1]]),
+            np.array([[0.05], [0.05], [-0.13], [1]]),
         ]
         psm_warmup_quats = [
             np.array([0.32743764, 0.79021532, 0.43636955, 0.27915223]),
@@ -137,7 +137,7 @@ tf_av_right_zivid = RigidTransform.load(
 
 psm_number_input = input("Which PSM are you using? (1 or 2)")
 tf_zivid_psm = None
-psm_points = []
+pose_lists = []
 
 if psm_number_input == "1":
     tf_zivid_psm = np.load(
@@ -145,17 +145,62 @@ if psm_number_input == "1":
             root_path, "experiment/0_trajectory_extraction/shallow_and_deep_calibration_outputs/psm1_robot_to_zivid.npy"
         )
     )
-    psm_points = np.array(
-        [
-            [0.08, 0.05, -0.14, 1],
-            [0.12, 0.05, -0.14, 1],
-            [0.08, 0.09, -0.14, 1],
-            [0.12, 0.09, -0.14, 1],
-            [0.08, 0.05, -0.14, 1],
-            [0.12, 0.05, -0.12, 1],
-            [0.08, 0.09, -0.12, 1],
-            [0.12, 0.09, -0.12, 1],
-        ]
+    # Move to suture clear pose
+    pose_lists.append(
+        (np.array([0.11316637, 0.01303404, -0.04916395]), np.array([0.12616457, -0.60540458, -0.22937437, 0.75163502]))
+    )
+
+    # Add home pose
+    pose_lists.append((np.array([0, 0, -0.13]), np.array([0, 0, 0, 1])))
+
+    # Go to pre-handover pose
+    pose_lists.append(
+        (np.array([0.08880125, 0.05858506, -0.10344337]), np.array([0.61735759, -0.17638474, 0.31953042, 0.69689192]))
+    )
+
+    # Go to handover pose
+    pose_lists.append(
+        (np.array([0.08738169, 0.08474459, -0.10285583]), np.array([0.61735759, -0.17638474, 0.31953042, 0.69689192]))
+    )
+
+    # Correction Step 1
+    pose_lists.append(
+        (np.array([0.08417361, 0.08523226, -0.10458831]), np.array([0.61557816, -0.19970439, 0.29569177, 0.70267209]))
+    )
+
+    # Correction Step 2
+    pose_lists.append(
+        (np.array([0.08435525, 0.08498609, -0.10476889]), np.array([0.64382882, 0.35338942, -0.22771418, 0.63933295]))
+    )
+
+    # Pre-insertion
+    pose_lists.append(
+        (np.array([0.10880398, 0.08446415, -0.0957803]), np.array([0.64635628, 0.3529954, -0.22424672, 0.63822505]))
+    )
+    # Insertion poses
+    pose_lists.append(
+        (np.array([0.1088187, 0.08370875, -0.14635209]), np.array([0.50746778, 0.49848271, -0.49660786, 0.49736514]))
+    )
+    pose_lists.append(
+        (np.array([0.13533885, 0.08416236, -0.14621308]), np.array([0.5720614, 0.41562694, -0.41562694, 0.5720614]))
+    )
+    pose_lists.append(
+        (np.array([0.12961172, 0.08416236, -0.14685837]), np.array([0.61499985, 0.34896301, -0.34896301, 0.61499985]))
+    )
+    pose_lists.append(
+        (np.array([0.12417177, 0.08416236, -0.14876189]), np.array([0.65020432, 0.27791067, -0.27791067, 0.65020432]))
+    )
+    pose_lists.append(
+        (np.array([0.11929178, 0.08416236, -0.13182819]), np.array([0.6772321, 0.20336343, -0.20336343, 0.6772321]))
+    )
+    pose_lists.append(
+        (np.array([0.11521647, 0.08416236, -0.13590351]), np.array([0.69574328, 0.12625879, -0.12625879, 0.69574328]))
+    )
+    pose_lists.append(
+        (np.array([0.11215017, 0.08416236, -0.1407835]), np.array([0.7055051, 0.04756637, -0.04756637, 0.7055051]))
+    )
+    pose_lists.append(
+        (np.array([0.11024665, 0.08416236, -0.14622345]), np.array([0.70639477, -0.03172423, 0.03172423, 0.70639477]))
     )
 
 elif psm_number_input == "2":
@@ -166,6 +211,8 @@ elif psm_number_input == "2":
 else:
     print("Please select 1 or 2")
     exit()
+psm_points = [pose[0] for pose in pose_lists]
+
 dvrk_type_input = input(
     "Which PSM driver type are you calibrating. Large SutureCut Needle Driver (1) or Large Needle Driver (2)"
 )
@@ -184,6 +231,7 @@ home_joints = single_psm_warmup(psm_number=psm_number_input, psm=psm)
 points_in_psm_frame = np.array(psm_points)
 
 tf_zivid_psm = np.linalg.inv(tf_zivid_psm)
+
 tf_zivid_psm = RigidTransform(
     rotation=tf_zivid_psm[:3, :3],
     translation=tf_zivid_psm[:3, 3],
@@ -195,55 +243,102 @@ tf_zivid_psm = RigidTransform(
 tf_av_left_psm = tf_av_left_zivid * tf_zivid_psm
 tf_av_right_psm = tf_av_right_zivid * tf_zivid_psm
 
-points_in_av_left_frame_homogenous = tf_av_left_psm.matrix @ psm_points.T
-points_in_av_left_frame_homogenous = points_in_av_left_frame_homogenous.T
-points_in_av_left_frame = points_in_av_left_frame_homogenous[:, :3] / points_in_av_left_frame_homogenous[:, 3].reshape(
-    -1, 1
-)
-pixels, _ = cv2.projectPoints(
-    points_in_av_left_frame,
-    rvec=np.array([0.0, 0.0, 0.0]),
-    tvec=np.array([0.0, 0.0, 0.0]),
-    cameraMatrix=P_av_left[:, :3],
-    distCoeffs=D_undistorted,
-)
-pixels = np.round(pixels).astype(int).squeeze()
-av_util = AlliedVisionUtils()
-av_cam = Camera(cst.ALLIED_VISION, zivid_cam_choice="inclined", zivid_capture_type="2d", rectify_img=False)
-time.sleep(2)
-print(" ")
-print("AV Stereo ready!")
-psm_point_index = 0
-while True:
-    img_av_left, img_av_right = av_cam.capture()
+camera_input = input("Which camera do you want to use? (Zivid or AV)")
+if camera_input == "AV":
+    psm_points_homogenous = [np.append(position, 1) for position in psm_points]
+    psm_points_homogenous = np.array(psm_points_homogenous)
+    points_in_av_left_frame_homogenous = tf_av_left_psm.matrix @ psm_points_homogenous.T
+    points_in_av_left_frame_homogenous = points_in_av_left_frame_homogenous.T
+    points_in_av_left_frame = points_in_av_left_frame_homogenous[:, :3] / points_in_av_left_frame_homogenous[
+        :, 3
+    ].reshape(-1, 1)
+    pixels, _ = cv2.projectPoints(
+        points_in_av_left_frame,
+        rvec=np.array([0.0, 0.0, 0.0]),
+        tvec=np.array([0.0, 0.0, 0.0]),
+        cameraMatrix=P_av_left[:, :3],
+        distCoeffs=D_undistorted,
+    )
+    pixels = np.round(pixels).astype(int).squeeze()
+    av_util = AlliedVisionUtils()
+    av_cam = Camera(cst.ALLIED_VISION, zivid_cam_choice="inclined", zivid_capture_type="2d", rectify_img=False)
+    time.sleep(2)
+    print(" ")
+    print("AV Stereo ready!")
+    psm_point_index = 0
+    while True:
+        img_av_left, img_av_right = av_cam.capture()
 
-    if len(img_av_left) == 0 or len(img_av_right) == 0:
-        time.sleep(0.1)
-        continue
-    img_av_left = av_util.rectify_single(img_av_left, is_left=True)
-    img_av_right = av_util.rectify_single(img_av_right, is_left=False)
-    psm1_p_robot, _ = psm.get_current_pose()
+        if len(img_av_left) == 0 or len(img_av_right) == 0:
+            time.sleep(0.1)
+            continue
+        img_av_left = av_util.rectify_single(img_av_left, is_left=True)
+        img_av_right = av_util.rectify_single(img_av_right, is_left=False)
+        psm1_p_robot, _ = psm.get_current_pose()
 
-    if psm_point_index - 1 >= 0:
-        img_av_left = cv2.circle(img_av_left, pixels[psm_point_index - 1], 5, (0, 255, 0), -1)
-    img_av_left = plot_psm_pos_on_img(img_av_left, psm1_p_robot, tf_av_left_psm, P_av_left[:, :-1], D_undistorted)
-    cv2.imshow("End Effector Tracking AV_LEFT. Press q to exit.", img_av_left)
+        if psm_point_index - 1 >= 0:
+            img_av_left = cv2.circle(img_av_left, pixels[psm_point_index - 1], 5, (0, 255, 0), -1)
+        img_av_left = plot_psm_pos_on_img(img_av_left, psm1_p_robot, tf_av_left_psm, P_av_left[:, :-1], D_undistorted)
+        cv2.imshow("End Effector Tracking AV_LEFT. Press q to exit.", img_av_left)
 
-    key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(1) & 0xFF
 
-    if key == ord("q"):
-        av_cam.stop()
-        break
-    elif key == ord(" "):
-
-        psm.set_joint(joint=np.copy(home_joints))
-        time.sleep(1)
-        if psm_point_index >= len(psm_points):
+        if key == ord("q"):
             av_cam.stop()
-            exit()
-        psm_point_homogenous = psm_points[psm_point_index]
-        psm_point = psm_point_homogenous[:3] / psm_point_homogenous[3]
-        psm_rand_quat = random_quaternion()
-        psm_pose = psm_point, psm_rand_quat
-        psm.set_pose(*psm_pose)
-        psm_point_index += 1
+            break
+        elif key == ord(" "):
+            if psm_point_index >= len(pose_lists):
+                av_cam.stop()
+                exit()
+            psm_pose = pose_lists[psm_point_index]
+            psm.set_pose(*psm_pose)
+            inverse_model_error = np.linalg.norm(psm.get_current_pose()[0] - psm_pose[0]) * 1000
+            print("Inverse model error: " + str(inverse_model_error) + " mm.")
+            psm_point_index += 1
+elif camera_input == "Zivid":
+    points_in_zivid_frame_homogenous = tf_zivid_psm.matrix @ psm_points.T
+    points_in_zivid_frame_homogenous = points_in_zivid_frame_homogenous.T
+    points_in_zivid_frame = points_in_zivid_frame_homogenous[:, :3] / points_in_zivid_frame_homogenous[:, 3].reshape(
+        -1, 1
+    )
+    zivid_cam = Camera(cst.ZIVID)
+    K_zivid = zivid_cam.cam.intrinsics_
+    D_zivid = zivid_cam.cam.distortion_coefficients_
+    time.sleep(2)
+    print(" ")
+    print("Zivid ready!")
+    psm_point_index = 0
+    pixels, _ = cv2.projectPoints(
+        points_in_zivid_frame,
+        rvec=np.array([0.0, 0.0, 0.0]),
+        tvec=np.array([0.0, 0.0, 0.0]),
+        cameraMatrix=K_zivid,
+        distCoeffs=D_zivid,
+    )
+    pixels = np.round(pixels).astype(int).squeeze()
+    while True:
+        img_zivid = zivid_cam.capture()
+
+        psm1_p_robot, _ = psm.get_current_pose()
+
+        if psm_point_index - 1 >= 0:
+            img_zivid = cv2.circle(img_zivid, pixels[psm_point_index - 1], 5, (0, 255, 0), -1)
+        img_zivid = plot_psm_pos_on_img(img_zivid, psm1_p_robot, tf_zivid_psm, K_zivid, D_zivid)
+        cv2.imshow("End Effector Tracking ZIVID. Press q to exit.", img_zivid)
+
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord("q"):
+            break
+        elif key == ord(" "):
+
+            psm.set_joint(joint=np.copy(home_joints))
+            time.sleep(1)
+            if psm_point_index >= len(psm_points):
+                exit()
+            psm_pose = pose_lists[psm_point_index]
+            psm.set_pose(*psm_pose)
+            psm_point_index += 1
+else:
+    print("Please type Zivid or AV")
+    exit()
