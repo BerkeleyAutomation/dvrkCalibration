@@ -116,13 +116,15 @@ python dvrkCalibrationEvaluation.py
 
 ## Final Outputs
 Here are where calibration outputs will be saved.
-The calibration models will be saved in the dvrk_2024 folder. The models saved here are automatically setup to work with the dvrk motion controller library.
+The calibration models and stereo camera calibration will be saved in the dvrk_2024 folder. The models saved here are automatically setup to work with the dvrk motion controller library and the calibration matrices are automatically setup to rectify the stereo images accordingly.
 
 The rest of the files are saved in the dvrkCalibration folder.
 ```bash
 .
 ├── automated_suturing
 ├── dvrk_2024
+    ├── data
+        ├── allied_vision_calibration_matrices (Stereo Checkerboard Calibration images and matrices)
     ├── dvrk
         ├── calibration_models
             ├── calibration_models_psm1
