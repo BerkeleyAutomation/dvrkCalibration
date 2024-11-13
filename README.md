@@ -31,12 +31,21 @@ Insert picture of calibration here
 This script will ask you which PSM you are calibrating. Then, ask if you need to find the bounding box values.
 Usually, you will want to do this by putting in the plus sign fiducial and then freedriving the robot to the corners.
 From there, you can call the get_pose function to get the robot pose at the corners. Then, update the parameters accordingly in the file.
-It should output a npy file in calibration_outputs folder called prime_psmX_random_sampled.npy
+It should output a npy file in calibration_outputs folder called prime_psmX_random_sampled.npy. You should have different samples for shallow calibration and deep calibration because the cross fiducial marker prevents you from exploring ur space adequately. Also, to sanity check that your shallow calibration is going to work, do it for just 30 spots first before doing the full 2000, and make sure your error is <1 mm
 ```
 cd ~/dvrkCalibration
 source activate_calibration.bash
 cd experiment/0_trajectory_extraction
 python random_sample_generation.py
+```
+
+### Specific Sample Generation
+While you are able to somewhat learn the hysteresis effect with random samples, we find that it is better to train on trajectories that best mimic the task that will be performed. In our case, we collected specific poses for each PSM for suturing and created samples off that.
+```
+cd ~/dvrkCalibration
+source activate_calibration.bash
+cd experiment/0_trajectory_extraction
+python psm_suturing_sample_generation.py
 ```
 
 ### Shallow Calibration (Camera to PSM/World Calibration)
@@ -48,7 +57,7 @@ python dvrkShallowCalibration.py
 ```
 
 ### Shallow Calibration Verification
-To verify that the shallow calibration actually worked, there are 2 things you can do. First, you can quantify the error with the verification script as explained here
+To verify that the shallow calibration actually worked, there are 2 things you can do. First, you can quantify the error with the verification script as explained here. You should be able to get <1mm with this calibration.
 ```
 cd ~/dvrkCalibration
 source activate_calibration.bash
@@ -89,16 +98,42 @@ source activate_calibration.bash
 python dvrkCalibration.py
 ```
 
-## Training
+## Model Training
+Training script to learn cabling effect. Note that you can choose between specific trajectory, random trajectory, or both.
 ```
 conda activate dvrk_calibration_env
 cd ~/dvrkCalibration/experiment/3_training/modeling
 python train.py
 ```
 
-## Inference
+## Evaluation
+To see if the model works, you can have it run through some evaluation poses. Note, that currently they are hardocded to resemble poses that each PSM would go through while suturing, but you can change these to be whatever task is relevant to you.
 ```
-conda activate dvrk_calibration_env
-cd /home/davinci/dvrkCalibration/experiment/4_verification
-python test_inference.py
+cd ~/dvrkCalibration
+source activate_calibration.bash
+python dvrkCalibrationEvaluation.py
+```
+
+## Final Outputs
+Here are where calibration outputs will be saved.
+The calibration models will be saved in the dvrk_2024 folder. The models saved here are automatically setup to work with the dvrk motion controller library.
+
+The rest of the files are saved in the dvrkCalibration folder.
+```bash
+.
+├── automated_suturing
+├── dvrk_2024
+    ├── dvrk
+        ├── calibration_models
+            ├── calibration_models_psm1
+            ├── calibration_models_psm2
+├── dvrkCalibration
+    ├── experiment
+        ├── 0_trajectory_extraction
+            ├── allied_vision_calibration_outputs (Stereo Checkerboard Calibration images and matrices)
+            ├── allied_vision_to_zivid_calibration_outputs (Aruco marker calibration for 2 diff cameras images and matrices)
+            ├── model_outputs (Same as the model outputs saved in calibration models, but this will include intermediate values)
+            ├── shallow_and_deep_calibration_outputs
+                ├── psm1_robot_to_zivid.npy
+                ├── psm2_robot_to_zivid.npy
 ```

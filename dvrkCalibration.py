@@ -43,11 +43,8 @@ class dvrkCalibration:
                 psm_string = "/PSM1"
                 self.robot_to_cam_ = np.load(os.path.join(self.calibration_output_path, "psm1_robot_to_zivid.npy"))
             elif self.psm_number == "2":
-                import pdb
-
-                pdb.set_trace()
                 psm_string = "/PSM2"
-                self.robot_to_cam_ = np.load("/home/davinci/dvrkCalibration/data/zivid_to_psm2.npy")
+                self.robot_to_cam_ = np.load(os.path.join(self.calibration_output_path, "psm2_robot_to_zivid.npy"))
             else:
                 print("Please select 1 or 2")
                 exit()

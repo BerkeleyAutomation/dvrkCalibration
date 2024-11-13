@@ -43,7 +43,7 @@ class dvrkCalibration:
 
         if self.dvrk_type_input == "1":
             self.dvrk_type = dvrkTypes.LRG_SUTURECUT_NEEDLE_DRIVER
-        elif self.driver_offset_input == "2":
+        elif self.dvrk_type_input == "2":
             self.dvrk_type = dvrkTypes.LARGE_NEEDLE_DRIVER
         else:
             print("Please select 1 or 2")
@@ -54,9 +54,6 @@ class dvrkCalibration:
         )
         self.robot_to_cam_ = np.eye(4)
         if know_transform:
-            import pdb
-
-            pdb.set_trace()
             if self.psm_number == "1":
                 psm_string = "/PSM1"
                 self.robot_to_cam_ = np.load(
@@ -260,6 +257,14 @@ class dvrkCalibration:
         pos_act = []
         assert len(j1) == len(j2) == len(j3) == len(j4) == len(j5) == len(j6)
         i = 1
+        # Include home position in the calibration
+        home_joints = self.dvrk.get_current_joint()
+        j1 = np.insert(j1, 0, home_joints[0])
+        j2 = np.insert(j2, 0, home_joints[1])
+        j3 = np.insert(j3, 0, home_joints[2])
+        j4 = np.insert(j4, 0, 0.0)
+        j5 = np.insert(j5, 0, 0.0)
+        j6 = np.insert(j6, 0, 0.0)
         for qd1, qd2, qd3, qd4, qd5, qd6 in zip(j1, j2, j3, j4, j5, j6):
             joint1 = [qd1, qd2, qd3, qd4, qd5, qd6]
             self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
@@ -302,7 +307,7 @@ class dvrkCalibration:
                     distCoeffs=distortion_coefficients,
                 )
                 pixel = np.round(pixel.squeeze()).astype(int)
-                img_color = cv2.circle(img_color, (pixel[0], pixel[1]), 3, (0, 255, 0), -1)
+                img_color = cv2.circle(img_color, (pixel[0], pixel[1]), 1, (0, 255, 0), -1)
                 pt = ee_point
                 pos_des_temp, _ = self.dvrk.get_current_pose()
                 pos_des.append(pos_des_temp)
@@ -311,16 +316,18 @@ class dvrkCalibration:
                         -1,
                     )
                 )
+                print("If the green dot isn't at the tip, change the self.dvrk.shallow_calibration_offset accordingly")
                 print("index: ", len(pos_des), "/", len(j1))
                 print("pos_des: ", pos_des_temp)
                 print("pos_act: ", pt)
                 print(" ")
-
                 cv2.imshow("images", img_color)
-                cv2.waitKey(1000) & 0xFF
+                cv2.waitKey(1) & 0xFF
                 i += 1
             else:
                 print("Bad reading")
+            # if i == 30:
+            #     break
 
         np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_pos_des"), pos_des)
         np.save(os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_pos_act"), pos_act)

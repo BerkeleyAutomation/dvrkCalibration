@@ -10,7 +10,9 @@ if not psm_number_input == "1" and not psm_number_input == "2":
     exit()
 
 root_path = os.path.dirname(os.path.abspath(__file__))
-calibration_output_path = os.path.join(root_path, "experiment/0_trajectory_extraction/calibration_outputs")
+calibration_output_path = os.path.join(
+    root_path, "experiment/0_trajectory_extraction/shallow_and_deep_calibration_outputs"
+)
 pos_actual = np.load(calibration_output_path + "/psm" + psm_number_input + "_pos_act.npy")
 pos_des = np.load(calibration_output_path + "/psm" + psm_number_input + "_pos_des.npy")
 psm_to_zivid = np.load(calibration_output_path + "/psm" + psm_number_input + "_robot_to_zivid.npy")

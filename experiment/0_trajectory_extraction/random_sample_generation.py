@@ -111,8 +111,8 @@ def random_sampling(sample_number, psm_number):
         pos_max = [0.115, 0.115, -0.08835805]
     elif psm_number == "2":
         # PSM2 for suturing
-        pos_min = [0.0, 0.0, -0.106]
-        pos_max = [-0.05, 0.05, -0.105]
+        pos_min = [-0.05, -0.01, -0.107]
+        pos_max = [0.05, 0.11, -0.12]
     else:
         print("Please select PSM1 or 2")
         exit()
@@ -186,6 +186,7 @@ if __name__ == "__main__":
     )  # Even tho the paper said 1800, we don't detect like 10-15% of them so we up it to 2k so we can get 1800 good data points
     print(np.shape(q_target))
     print(np.shape(pos_target))
+    print("Joint 3 should not be less than 0.12")
     plot_position(pos_target)
     plot_joint(q_target)
     if not os.path.exists("shallow_and_deep_calibration_outputs"):
