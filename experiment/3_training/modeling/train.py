@@ -74,7 +74,7 @@ def load_data(data_dir):
     ], psm_number
 
 
-def format_data(H, fname, for_dvrk, use_actual_inputs=False, rnn=False):
+def format_data(H, fname, input_output_dim, use_actual_inputs=False, rnn=False):
     """
     Formats histories from oldest to newest.
     """
@@ -85,12 +85,10 @@ def format_data(H, fname, for_dvrk, use_actual_inputs=False, rnn=False):
     total_cmds = None
     total_phys = None
     for data in total_data:
-        if for_dvrk:
-            desired = data["joint_desired"][:, 3:]
-            actual = data["joint_actual"][:, 3:]
-        else:
-            desired = data["joint_desired"]
-            actual = data["joint_actual"]
+        num_joints = data["joint_desired"].shape[1]
+        desired = data["joint_desired"][:, (num_joints - input_output_dim) :]
+        actual = data["joint_actual"][:, (num_joints - input_output_dim) :]
+
         histories = []
 
         for i in range(H):
@@ -180,15 +178,16 @@ class Experiment:
 
         # Load and format data
         histories, cmds, phys, psm_number = format_data(
-            config.history, config.training_data, config.for_dvrk, config.actual_inputs, config.rnn
+            config.history, config.training_data, config.input_output_dim, config.actual_inputs, config.rnn
         )
         # Remove 0's/Bad data from the dataset
-        zero_indices = np.all(phys == np.array([0.0, 0.0, 0.0]), axis=1)
+        zero_indices = np.all(phys == np.array([0.0] * config.input_output_dim), axis=1)
         indices_to_remove = np.where(zero_indices)[0]
         histories = np.delete(histories, indices_to_remove, axis=0)
         cmds = np.delete(cmds, indices_to_remove, axis=0)
         phys = np.delete(phys, indices_to_remove, axis=0)
-
+        print("Data size: " + str(histories.shape[0]))
+        input("Press enter to proceed with training")
         self.validation_size = int(config.validation_prob * len(histories))
         self.training_histories = histories[self.validation_size :]
         self.training_cmds = cmds[self.validation_size :]
@@ -403,9 +402,19 @@ def create_config():
     config = DotMap()
     config.peg_data = "training_dataset_brijen/peg_transfer"
 
-    # TODO: Change config.random_data to directory with data
-    config.for_dvrk = True
-
+    input_output_dim_str = input(
+        "Do you want to train network on last 3 joints (1), last 4 joints (2), or all joints (3)?"
+    )
+    input_output_dim = int(input_output_dim_str)
+    if input_output_dim == 1:
+        input_output_dim = 3
+    elif input_output_dim == 2:
+        input_output_dim = 4
+    elif input_output_dim == 3:
+        input_output_dim = 6
+    else:
+        print("Please select either 1, 2, or 3")
+        exit()
     root_path = os.path.dirname(os.path.abspath(__file__))
     calibration_output_path = os.path.join(
         root_path, "../../0_trajectory_extraction/shallow_and_deep_calibration_outputs"
@@ -413,6 +422,7 @@ def create_config():
     save_dir = os.path.join(root_path, "../../0_trajectory_extraction/model_outputs")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+    config.input_output_dim = input_output_dim
     config.random_data = calibration_output_path
     config.training_data = config.random_data  # which dataset to train on
     config.actual_inputs = False  # whether to use actual as input for history (Could be worth experimenting with, but paper says this performs worse)

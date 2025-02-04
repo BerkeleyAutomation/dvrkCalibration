@@ -14,6 +14,7 @@ from vision.ZividCaptureNew import ZividCapture
 from vision.BallDetection import BallDetection
 from dvrk.motion.dvrkArm import dvrkArm
 from dvrk.motion.dvrkTypes import dvrkTypes
+from dvrk.motion.dvrkKinematics import dvrkKinematics
 import utils.CmnUtil as U
 import os
 from scipy.optimize import minimize
@@ -49,9 +50,14 @@ class dvrkCalibration:
             print("Please select 1 or 2")
             exit()
         root_path = os.path.dirname(os.path.abspath(__file__))
+        # self.calibration_output_path = os.path.join(
+        #     root_path, "experiment/0_trajectory_extraction/shallow_and_deep_calibration_outputs"
+        # )
+
         self.calibration_output_path = os.path.join(
             root_path, "experiment/0_trajectory_extraction/shallow_and_deep_calibration_outputs"
         )
+
         self.robot_to_cam_ = np.eye(4)
         if know_transform:
             if self.psm_number == "1":
@@ -73,7 +79,9 @@ class dvrkCalibration:
 
         # Load trajectory
         # filename = root + 'experiment/0_trajectory_extraction/verification_traj_random_sampling_10000.npy'
-        filename = os.path.join(self.calibration_output_path, "prime_psm" + self.psm_number + "_random_sampled.npy")
+        filename = os.path.join(
+            self.calibration_output_path, "prime_psm" + self.psm_number + "_shallow_random_sampled.npy"
+        )
         self.joint_traj = self.load_trajectory(filename)
 
     def load_trajectory(self, filename):
@@ -187,17 +195,156 @@ class dvrkCalibration:
         j3 = np.ones_like(j6) * self.dvrk.act_joint1[2]
         self.collect_data_joint(j1, j2, j3, j4, j5, j6, transform="known")
 
-    def initial_setup(self):
-        initial_pos = np.array([0, 0, -0.13])
-        initial_euler = np.array([0, 0, 0])
-        initial_quat = np.array([0, 0, 0, 1])
-        initial_pose = initial_pos, initial_quat
-        self.dvrk.set_pose(*initial_pose)
-        self.dvrk.set_jaw(JAW_OPEN_ANGLE)
+    def click_event(self, event, u, v, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            pixel_value = param["img"][v, u]
+            print(f"Pixel coordinates: (u={u}, v={v}) - Pixel value: {pixel_value}")
+
+            # Display the coordinates and pixel value on the image
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(
+                param["img"],
+                f"({u},{v})",
+                (u, v),
+                font,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                param["img"],
+                str(pixel_value),
+                (u, v + 20),
+                font,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            time.sleep(0.5)
+            param["u"] = u
+            param["v"] = v
+
+    def pixel_to_3d_line(self, u, v, camera_matrix, dist_coeffs):
+        """
+        Given pixel coordinates (u, v), the camera intrinsic matrix, and distortion coefficients,
+        compute the 3D line that passes through the camera center and the pixel.
+        """
+        # Convert pixel coordinates to normalized undistorted coordinates
+        pixel = np.array([[u, v]], dtype=np.float32)  # Shape: (1, 1, 2)
+        undistorted = cv2.undistortPoints(pixel, camera_matrix, dist_coeffs)
+
+        # Extract x, y from undistorted coordinates (z = 1.0 assumed for direction)
+        x, y = undistorted[0][0]
+        z = 1.0  # Assume unit depth
+
+        # Ray direction in camera space (origin: [0,0,0])
+        ray_dir = np.array([x, y, z])
+        ray_dir /= np.linalg.norm(ray_dir)  # Normalize the direction
+
+        return np.array([0, 0, 0]), ray_dir  # Camera origin and ray direction
+
+    def closest_point_between_lines(self, origin1, dir1, origin2, dir2):
+        # Normalize direction vectors
+        dir1 = dir1 / np.linalg.norm(dir1)
+        dir2 = dir2 / np.linalg.norm(dir2)
+
+        # Solve for t and s
+        A = np.column_stack((dir1, -dir2))  # 3x2 matrix
+        b = origin2 - origin1  # 3x1 vector
+
+        # Solve least-squares (minimizing error in case of skew lines)
+        try:
+            ts, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
+            t, s = ts  # Extract parameters
+        except np.linalg.LinAlgError:
+            return None  # If matrix is singular, no intersection
+
+        # Compute the intersection points on each line
+        point1 = origin1 + t * dir1
+        point2 = origin2 + s * dir2
+        distance = np.linalg.norm(point1 - point2)
+        return point1, point2, distance
+
+    def initial_setup(self, q3_height):
+        self.dvrk.set_joint(np.array([0, 0, q3_height, 0, 0, 0]))
+        time.sleep(1.0)
+        self.dvrk.set_joint(np.array([0, 0, q3_height, 0, 0, 0]))
         time.sleep(0.1)
-        input("Press enter to start")
-        self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
-        time.sleep(1)
+        curr_joints = self.dvrk.get_current_joint()
+        q3_joint = curr_joints[2]
+        measured_q3_joint = input("Manually measure the Q3 offset and input it in meters: ") 
+        print("Debug:" + str(q3_joint))
+        q3_offset = float(measured_q3_joint) - q3_joint
+        got_red_fiducial_measurement = False
+        while not got_red_fiducial_measurement:
+            print("Press enter when you have moved q1,q2 such that the tip is visible to the PSM")
+            while True:
+                zivid_image, zivid_depth, zivid_pcl, intrinsics_matrix, distortion_coefficients = self.zivid.capture()
+                cv2.imshow("Press enter when you have moved q1,q2 such that the tip is visible to the PSM", zivid_image)
+                key = cv2.waitKey(1) & 0xFF
+                if key == 13:  # ASCII code for Enter key
+                    break
+            cv2.destroyAllWindows()
+
+            img_color, img_depth, img_point = (
+                zivid_image,
+                zivid_depth,
+                zivid_pcl,
+            )  # self.BD.img_crop(zivid_image,zivid_depth,zivid_pcl)
+            # img_color = cv2.cvtColor(img_color, cv2.COLOR_RGB2BGR)
+            img_color_org = np.copy(img_color)
+            # Find balls
+            pbs = self.BD.find_shallow_balls(img_color_org, img_depth, img_point)
+
+            img_color = self.BD.overlay_balls(img_color, pbs, intrinsics_matrix, distortion_coefficients)
+            cv2.imshow("Press y if the fiducial overlay is correct. Otherwise press any other key", img_color)
+            key = cv2.waitKey(0) & 0xFF
+            if key == ord("y"):  # ASCII code for Enter key
+                got_red_fiducial_measurement = True
+            else:
+                got_red_fiducial_measurement = False
+            cv2.destroyAllWindows()
+        got_pixel_tip = False
+        while not got_pixel_tip:
+            params = {"img": img_color.copy(), "u": None, "v": None}
+            cv2.imshow("Click the end effector tip", img_color)
+            cv2.setMouseCallback("Click the end effector tip", self.click_event, param=params)
+
+            # Wait until a key is pressed and the coordinates are set
+            while params["u"] is None or params["v"] is None:
+                if cv2.waitKey(1) & 0xFF == 27:  # Press 'Esc' to exit
+                    break
+
+            # Retrieve the u, v pixel coordinates from the callback
+            u, v = params["u"], params["v"]
+
+            print(f"Selected coordinates: (u={u}, v={v})")
+            cv2.destroyAllWindows()
+
+            pixel_origin, pixel_ray_dir = self.pixel_to_3d_line(
+                u=u, v=v, camera_matrix=intrinsics_matrix, dist_coeffs=distortion_coefficients
+            )
+            big_ball_center = np.array([pbs[0][0], pbs[0][1], pbs[0][2]]) / 1000
+            big_ball_radius = pbs[0][3] / 1000
+
+            small_ball_center = np.array([pbs[1][0], pbs[1][1], pbs[1][2]]) / 1000
+            small_ball_radius = pbs[1][3] / 1000
+            direction = small_ball_center - big_ball_center
+            normalized_direction = direction / np.linalg.norm(direction)
+            small_ball_origin, small_ball_ray_dir = small_ball_center, normalized_direction
+            point1, point2, distance = self.closest_point_between_lines(
+                pixel_origin, pixel_ray_dir, small_ball_origin, small_ball_ray_dir
+            )
+            correct_pixel_input = input(
+                "Distance should be 0. It is actually " + str(distance * 1000) + " mm. Is that acceptable (y)"
+            )
+            if correct_pixel_input:
+                got_pixel_tip = True
+        pixel_tip_point = point2  # We pick the point actually on the line
+        small_ball_to_tip_offset = np.linalg.norm(pixel_tip_point - small_ball_origin)
+        return q3_offset, small_ball_to_tip_offset
 
     def optimize_transform(self, psm1_to_zivid_initial, pos_act, pos_des):
         initial_rotation_matrix = psm1_to_zivid_initial[:3, :3]
@@ -246,8 +393,9 @@ class dvrkCalibration:
         return psm1_to_zivid
 
     def collect_data_joint(self, j1, j2, j3, j4, j5, j6, transform="known"):  # j1, ..., j6: joint trajectory
-        self.initial_setup()
-
+        q3_height = j3[0]
+        q3_offset, small_ball_to_tip_offset = self.initial_setup(q3_height)
+        input("Press enter when the other PSM is cleared out of the way")
         # try:
         time_st = time.time()  # (sec)
         time_stamp = []
@@ -257,14 +405,6 @@ class dvrkCalibration:
         pos_act = []
         assert len(j1) == len(j2) == len(j3) == len(j4) == len(j5) == len(j6)
         i = 1
-        # Include home position in the calibration
-        home_joints = self.dvrk.get_current_joint()
-        j1 = np.insert(j1, 0, home_joints[0])
-        j2 = np.insert(j2, 0, home_joints[1])
-        j3 = np.insert(j3, 0, home_joints[2])
-        j4 = np.insert(j4, 0, 0.0)
-        j5 = np.insert(j5, 0, 0.0)
-        j6 = np.insert(j6, 0, 0.0)
         for qd1, qd2, qd3, qd4, qd5, qd6 in zip(j1, j2, j3, j4, j5, j6):
             joint1 = [qd1, qd2, qd3, qd4, qd5, qd6]
             self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
@@ -292,12 +432,9 @@ class dvrkCalibration:
                 small_ball_radius = pbs[1][3] / 1000
                 direction = small_ball_center - big_ball_center
                 normalized_direction = direction / np.linalg.norm(direction)
-                pitch_to_yaw = 0.0091
-                yaw_to_control_point = 0.0102
 
-                # TODO: Check which needle driver you are using, if you are using suturecut driver or needle offset driver
-                offset = self.dvrk.shallow_calibration_offset + (small_ball_radius / 2)
-                ee_point = small_ball_center + (offset * normalized_direction)
+                # shallow_offset: from tip to the lower boundary of the small ball
+                ee_point = small_ball_center + (small_ball_to_tip_offset * normalized_direction)
                 ee_point = ee_point.reshape(-1, 1)
                 pixel, _ = cv2.projectPoints(
                     objectPoints=ee_point,
@@ -307,16 +444,23 @@ class dvrkCalibration:
                     distCoeffs=distortion_coefficients,
                 )
                 pixel = np.round(pixel.squeeze()).astype(int)
-                img_color = cv2.circle(img_color, (pixel[0], pixel[1]), 1, (0, 255, 0), -1)
+                img_color = cv2.circle(img_color, (pixel[0], pixel[1]), 5, (0, 255, 0), -1)
                 pt = ee_point
-                pos_des_temp, _ = self.dvrk.get_current_pose()
+                curr_joints = self.dvrk.get_current_joint()
+                curr_joints[2] += q3_offset
+                pos_des_temp, _ = dvrkKinematics.joint_to_pose(
+                    curr_joints,
+                    L1=self.dvrk.l_rcc_,
+                    L2=self.dvrk.l_tool_,
+                    L3=self.dvrk.l_pitch_2_yaw_,
+                    L4=self.dvrk.l_yaw_2_ctrl_pnt_,
+                )
                 pos_des.append(pos_des_temp)
                 pos_act.append(
                     pt.reshape(
                         -1,
                     )
                 )
-                print("If the green dot isn't at the tip, change the self.dvrk.shallow_calibration_offset accordingly")
                 print("index: ", len(pos_des), "/", len(j1))
                 print("pos_des: ", pos_des_temp)
                 print("pos_act: ", pt)

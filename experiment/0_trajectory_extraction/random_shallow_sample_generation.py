@@ -2,14 +2,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from dvrk.motion.dvrkArm import dvrkArm
-from dvrk.motion.dvrkKinematics import dvrkKinematics
 from dvrk.motion.dvrkTypes import dvrkTypes
+from dvrk.motion.dvrkKinematics import dvrkKinematics
+import termios
+import select
+import sys
+import tty
 import os
 from scipy.spatial.transform import Rotation as R
 import time
 import os
+import math
 
-JAW_OPEN_ANGLE = [1]  # Angle for opening jaw to release
+JAW_OPEN_ANGLE = [np.pi / 2]  # Angle for opening jaw to release
 JAW_CLOSE_ANGLE = [-0.3]  # Angle for closing jaw to grasp
 psm1 = dvrkArm("/PSM1", dvrk_type=dvrkTypes.LRG_SUTURECUT_NEEDLE_DRIVER, use_rnn=False)
 psm2 = dvrkArm("/PSM2", dvrk_type=dvrkTypes.LARGE_NEEDLE_DRIVER, use_rnn=False)
@@ -73,18 +78,6 @@ def plot_joint(q_des):
     plt.show()
 
 
-def fk_position(q):
-    q1, q2, q3, _, _, _ = q
-    L1 = 0.4318  # Rcc (m)
-    L2 = 0.4162  # tool
-
-    # Forward Kinematics
-    x = np.cos(q2) * np.sin(q1) * (L2 - L1 + q3)
-    y = -np.sin(q2) * (L2 - L1 + q3)
-    z = -np.cos(q1) * np.cos(q2) * (L2 - L1 + q3)
-    return x, y, z
-
-
 def ik_position(pos):
     x = pos[0]  # (m)
     y = pos[1]
@@ -104,7 +97,7 @@ def ik_position(pos):
     return q1, q2, q3
 
 
-def random_sampling(sample_number, psm_number):
+def random_sampling(sample_number, psm_number, q1_min, q1_max, q2_min, q2_max, q3):
     psm = None
     if psm_number == "1":
         psm = psm1
@@ -117,53 +110,22 @@ def random_sampling(sample_number, psm_number):
     pos_target = []
     pos_min = []
     pos_max = []
-    # TODO: Make sure you update these values to reflect the bounding box you want the PSM to move around
-    if psm_number == "1":
-        pos_min = [0.04118268314885131, 0.023491984893899007, -0.10741129088347193]
-        pos_max = [0.11902427026156587, 0.11677281121732244, -0.09957722049207289]
-    elif psm_number == "2":
-        # # PSM2 for suturing
-        # pos_min = [-0.05, -0.01, -0.107]
-        # pos_max = [0.05, 0.11, -0.12]
 
-        # PSM2 for knotting
-        # pos_min = [-0.05, 0.11, -0.125]  # should further raise the height, 0.005?
-        # pos_max = [0.02, 0.0, -0.11]
-        pos_min = [-0.06, -0.01, -0.107]
-        pos_max = [0.04, 0.11, -0.12]
+    q4_range = np.array([0, 0]) * np.pi / 180.0
+    q5_range = np.array([0, 0]) * np.pi / 180.0
+    q6_range = np.array([-90, 90]) * np.pi / 180.0
 
-    else:
-        print("Please select PSM1 or 2")
-        exit()
-    q4_range = np.array([-90, 90]) * np.pi / 180.0
-    q5_range = np.array([-75, 75]) * np.pi / 180.0
-    q6_range = np.array([-75, 75]) * np.pi / 180.0
-    input("Press enter when PSM translation joint is as high as it can be without the ball touching the silver shaft")
-    min_q3_joint = psm.get_current_joint()[2]
     for i in range(sample_number):
-        pos_rand = np.random.uniform(pos_min, pos_max)
-
-        q1, q2, q3 = ik_position(pos_rand)
-        q3 = max(q3, min_q3_joint)
-        # sample_pos = sample_pos_list[i]
-        # q1, q2, q3 = ik_position(pos_rand)
-        # current_joints = dvrk_arm.get_current_joint()
-        # new_joints = np.array([q1,q2,q3,current_joints[3],current_joints[4],current_joints[5]])
-        # dvrk_arm.set_joint(new_joints)
-        q4 = np.random.uniform(q4_range[0], q4_range[1])
-        q5 = np.random.uniform(q5_range[0], q5_range[1])
-        q6 = np.random.uniform(q6_range[0], q6_range[1])
-        curr_joints = [q1, q2, q3, q4, q5, q6]
-        q_target.append(curr_joints)
-
-        pos_rand, _ = dvrkKinematics.joint_to_pose(
-            np.array(curr_joints),
-            L1=psm.l_rcc_,
-            L2=psm.l_tool_,
-            L3=psm.l_pitch_2_yaw_,
-            L4=psm.l_yaw_2_ctrl_pnt_,
+        q1 = np.random.uniform(q1_min, q1_max)
+        q2 = np.random.uniform(q2_min, q2_max)
+        q4, q5, q6 = 0.0, 0.0, 0.0
+        curr_q = [q1, q2, q3, q4, q5, q6]
+        q_target.append(curr_q)
+        pose = dvrkKinematics.joint_to_pose(
+            curr_q, L1=psm.l_rcc_, L2=psm.l_tool_, L3=psm.l_pitch_2_yaw_, L4=psm.l_yaw_2_ctrl_pnt_
         )
-        pos_target.append(pos_rand)
+        pos_target.append(pose[0])
+
     return q_target, pos_target
 
 
@@ -177,7 +139,7 @@ def set_bounding_box_input(psm_number):
         print("Please select PSM1 or 2")
         exit()
 
-    initial_pos = np.array([0, 0, -0.135])
+    initial_pos = np.array([0, 0, -0.13])
     initial_euler = np.array([0, 0, 0])
     initial_quat = np.array([0, 0, 0, 1])
     initial_pose = initial_pos, initial_quat
@@ -189,7 +151,9 @@ def set_bounding_box_input(psm_number):
     time.sleep(0.1)
     input("Place plus sign fiducial with little yellow up")
     psm.set_jaw(JAW_CLOSE_ANGLE)
-    print("Now manually move the robot around and call fk_position(psm.get_current_joint()) to get your bounding box.")
+    print(
+        "Now manually move the robot around and call psm.get_current_pose() to get your bounding box. For the z values, make sure you add 0.0193 to the z because we want position to be before the pitch joint, not the end effector tip"
+    )
     import pdb
 
     pdb.set_trace()
@@ -197,24 +161,83 @@ def set_bounding_box_input(psm_number):
     # x_max,y_max,z_max = 0.115,0.115, -0.107
 
 
+def is_there_a_key_press():
+    return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
+
+
+def find_range(psm):
+    print(
+        'Finding range of motion for joint 0\nMove the arm manually (pressing the clutch) to find the maximum range of motion for the first joint (left to right motion).\n - press "d" when you are done\n - press "q" to abort\n'
+    )
+
+    q1_min = math.radians(180.0)
+    q1_max = math.radians(-180.0)
+    q2_min = math.radians(180.0)
+    q2_max = math.radians(-180.0)
+    done = False
+
+    # termios settings
+    old_settings = termios.tcgetattr(sys.stdin)
+    try:
+        tty.setcbreak(sys.stdin.fileno())
+        while not done:
+            # process key
+            if is_there_a_key_press():
+                c = sys.stdin.read(1)
+                if c == "d":
+                    done = True
+                elif c == "q":
+                    sys.exit("... calibration aborted by user")
+
+            # get measured joint values
+            p = psm.get_current_joint()
+            if p[0] > q1_max:
+                q1_max = p[0]
+            elif p[0] < q1_min:
+                q1_min = p[0]
+            if p[1] > q2_max:
+                q2_max = p[1]
+            elif p[1] < q2_min:
+                q2_min = p[1]
+
+            # display current range on the same line
+            sys.stdout.write(
+                "\rQ1 Range[%02.2f, %02.2f] | Q2 Range[%02.2f, %02.2f]"
+                % (math.degrees(q1_min), math.degrees(q1_max), math.degrees(q2_min), math.degrees(q2_max))
+            )
+            sys.stdout.flush()
+
+            # sleep
+            time.sleep(0.1)
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        print("")
+    return q1_min, q1_max, q2_min, q2_max
+
+
 if __name__ == "__main__":
     psm_number = input("Which PSM are you calibrating for suturing workspace. Pick 1 or 2 ")
     print(psm_number)
-    bounding_box_input = input("Do you need to find bounding box values (y/n)?")
-    if bounding_box_input == "y":
-        set_bounding_box_input(psm_number)
-    elif bounding_box_input == "n":
-        pass
+    psm = None
+    if psm_number == "1":
+        psm = psm1
+    elif psm_number == "2":
+        psm = psm2
     else:
-        print("Press either y or n")
+        print("Please select PSM1 or 2")
         exit()
-    q_target, pos_target = random_sampling(
-        250, psm_number
-    )  # Even tho the paper said 1800, we don't detect like 10-15% of them so we up it to 2k so we can get 1800 good data points
-    # If collecting 200 samples, the generated zivid-PSM matrix will have apparent position offeset after one sururing experiment. So collecting 2000 samples to avoid this issue.
+    input("Press enter when camera is running so you can visually verify the bounding box positions")
+    input("Press enter to set height of translation joint")
+    curr_joints = psm.get_current_joint()
+    q3 = curr_joints[2]
+    start_joints = np.array([0, 0, q3, 0, 0, 0])
+    psm.set_joint(start_joints)
+
+    q1_min, q1_max, q2_min, q2_max = find_range(psm)
+
+    q_target, pos_target = random_sampling(200, psm_number, q1_min, q1_max, q2_min, q2_max, q3)
     print(np.shape(q_target))
     print(np.shape(pos_target))
-    print("Joint 3 should not be less than 0.12")
     plot_position(pos_target)
     plot_joint(q_target)
 
@@ -224,7 +247,7 @@ if __name__ == "__main__":
 
     if not os.path.exists("shallow_and_deep_calibration_outputs"):
         os.makedirs("shallow_and_deep_calibration_outputs")
-    np.save("shallow_and_deep_calibration_outputs/prime_psm" + psm_number + "_random_sampled", q_target)
+    np.save("shallow_and_deep_calibration_outputs/prime_psm" + psm_number + "_shallow_random_sampled", q_target)
 
     # I'm not saving to true filepath because I don't want to overwrite anything while I'm still testing
     # But eventually save it to this folder: /home/davinci/dvrkCalibration/experiment/0_trajectory_extraction

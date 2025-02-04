@@ -18,7 +18,7 @@ import utils.CmnUtil as U
 import os
 
 root = "/home/davinci/dvrkCalibration"
-JAW_OPEN_ANGLE = [np.pi / 2]
+JAW_OPEN_ANGLE = [1]
 JAW_CLOSE_ANGLE = [-0.3]  # Angle for closing jaw to grasp
 
 
@@ -78,9 +78,54 @@ class dvrkCalibration:
             print("Please select 1 or 2")
             exit()
         filename = os.path.join(
-            self.calibration_output_path, "prime_psm" + self.psm_number + "_" + self.data_type_ + "_sampled.npy"
+            self.calibration_output_path,
+            "prime_psm" + self.psm_number + "_" + self.data_type_ + "_sampled.npy",
         )
         self.joint_traj = self.load_trajectory(filename)
+        # Define the maximum allowed step before interpolation is needed
+        step_size = np.array([0.1, 0.1, 0.002, 0.1, 0.1, 0.1])
+
+        # Initialize a new list to store the interpolated trajectory
+        interpolated_traj = [self.joint_traj[0]]  # Start with the first row
+
+        # Iterate through the trajectory
+        for i in range(1, len(self.joint_traj)):
+            prev = self.joint_traj[i - 1]  # Last added point
+            current = self.joint_traj[i]
+            # Compute the difference
+            diff = current - prev
+            diff_sign = np.sign(diff)
+            current_step_size = diff_sign * step_size
+            interpolated_joint = prev.copy()
+            while not np.equal(interpolated_joint, current).all():
+                interpolated_joint += current_step_size
+                for j in range(len(diff)):
+                    curr_sign = diff_sign[j]
+                    curr_interpolated_joint = interpolated_joint[j]
+                    curr_current_joint = current[j]
+                    if curr_sign == -1.0:
+                        interpolated_joint[j] = max(curr_interpolated_joint, curr_current_joint)
+                    elif curr_sign == 1.0:
+                        interpolated_joint[j] = min(curr_interpolated_joint, curr_current_joint)
+                    elif curr_sign == 0.0:
+                        pass
+                    else:
+                        print("Your sign is not positive or negative or 0. Weird error")
+                        exit()
+                interpolated_traj.append(interpolated_joint.copy())
+
+        interpolated_traj_filename = os.path.join(
+            os.path.dirname(filename),
+            "prime_interpolated_psm" + self.psm_number + "_" + self.data_type_ + "_sampled.npy",
+        )
+        np.save(
+            os.path.join(
+                os.path.dirname(filename),
+                "prime_interpolated_psm" + self.psm_number + "_" + self.data_type_ + "_sampled.npy",
+            ),
+            interpolated_traj,
+        )
+        self.joint_traj = self.load_trajectory(interpolated_traj_filename)
 
     def load_trajectory(self, filename):
         joint = np.load(filename)
@@ -221,7 +266,7 @@ class dvrkCalibration:
             self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
             self.dvrk.set_joint(joint=joint1)
             self.dvrk.set_jaw(JAW_CLOSE_ANGLE)
-            time.sleep(1)
+            time.sleep(0.1)
             # Capture image from Zivid
             zivid_image, zivid_depth, zivid_pcl, intrinsics_matrix, distortion_coefficients = self.zivid.capture()
             img_color, img_depth, img_point = (
@@ -288,6 +333,7 @@ class dvrkCalibration:
                 print(" ")
                 cv2.imshow("images, Spacebar to continue", img_color)
                 cv2.waitKey(1) & 0xFF
+
                 # while True:
                 #     key = cv2.waitKey(0)
                 #     if key == 32:
@@ -299,7 +345,19 @@ class dvrkCalibration:
             # Visualize
             i += 1
             # cv2.waitKey(0)
-
+            if i % 100 == 0:
+                np.save(
+                    os.path.join(
+                        self.calibration_output_path, "psm" + str(self.psm_number) + "_q_des_raw_" + self.data_type_
+                    ),
+                    q_des,
+                )
+                np.save(
+                    os.path.join(
+                        self.calibration_output_path, "psm" + str(self.psm_number) + "_q_act_raw_" + self.data_type_
+                    ),
+                    q_act,
+                )
         np.save(
             os.path.join(self.calibration_output_path, "psm" + str(self.psm_number) + "_q_des_raw_" + self.data_type_),
             q_des,
